@@ -1,101 +1,283 @@
 # Synapse SDK
 
-The **Synapse SDK** enables an "LLM-Orchestrator" architecture where a central intelligence (LLM) determines user intent, and lightweight JavaScript plugins execute the actions.
+The **Synapse SDK** enables an extensible plugin architecture for the Synapse app — an intelligent action router that turns captured information (screenshots, links, text) into automated actions.
 
-This repository contains:
-1.  **JS SDK (`/`)**: The TypeScript library for building plugins.
-2.  **Flutter Example (`/flutter_example`)**: A Host application demonstrating the integration.
+## Overview
+
+- **JS SDK** (`/src`): TypeScript library for building plugins
+- **Flutter Host** (`/flutter_example`): Reference implementation for Flutter apps
+
+---
 
 ## 📦 For Plugin Developers
-
-The SDK provides a standard contract to communicate with the Host Application.
 
 ### Installation
 ```bash
 npm install @synapse/sdk
 ```
 
-### Usage
-Interactions are handled via the global `synapse` object.
+### Core Concepts
 
-#### 1. Registering Intents
-Plugins register handlers that correspond to LLM intent outputs.
+Plugins register **intent handlers** that process user actions. The host application:
+1. Captures content (image, text, URL)
+2. Uses AI to detect intent and extract entities
+3. Dispatches to the appropriate plugin
+4. Plugin executes the action (API calls, etc.)
+
+### Basic Plugin
+
 ```javascript
 import { synapse } from '@synapse/sdk';
 
-synapse.register('create_event', async (params) => {
-  // params = { title: "Meeting", time: "10am" }
-  return synapse.success({ message: "Event Created" });
+synapse.register('create_event', async (ctx) => {
+  // ctx.input  - The shared content
+  // ctx.llm    - AI analysis (intent, entities)
+  // ctx.user   - User context (locale, timezone)
+  
+  const { title, time } = ctx.llm.entities;
+  
+  // Make API request
+  const res = await synapse.fetch('https://api.example.com/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, time })
+  });
+  
+  if (res.ok) {
+    const data = await res.json();
+    return synapse.success({ eventId: data.id });
+  }
+  
+  return synapse.fail({ reason: 'api_error', message: 'Failed to create event' });
 });
 ```
 
-#### 2. Network Requests (Sandboxed)
-Plugins cannot access the internet directly. Use `synapse.net` to proxy requests through the Host.
+---
+
+## API Reference
+
+### `synapse.register(intent, handler)`
+
+Register a handler for an intent.
+
+```javascript
+synapse.register('my_intent', async (ctx) => {
+  // Handle the intent
+  return synapse.success({ result: '...' });
+});
+```
+
+### `synapse.fetch(url, init?)`
+
+Make HTTP requests. Mirrors the browser `fetch()` API.
+
 ```javascript
 // GET
-const res = await synapse.net.get('https://api.example.com/books');
+const res = await synapse.fetch('https://api.example.com/data');
+const data = await res.json();
 
 // POST
-const res = await synapse.net.post('https://api.example.com/submit', {
-  data: "foo"
-}, {
-  'Authorization': 'Bearer ...'
+const res = await synapse.fetch('https://api.example.com/create', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Test' })
+});
+
+// Response properties
+res.ok         // true if 200-299
+res.status     // HTTP status code
+res.statusText // Status text
+res.headers    // Response headers
+await res.json()  // Parse as JSON
+await res.text()  // Get as text
+```
+
+### `synapse.ui`
+
+Display custom UI to users.
+
+```javascript
+// Show HTML interface
+const result = await synapse.ui.show(`
+  <button onclick="SynapseBridge.postMessage({selected: 'A'})">
+    Option A
+  </button>
+`, { title: 'Select Option' });
+
+// Toast message
+await synapse.ui.toast('Action completed!');
+
+// Confirmation dialog
+const confirmed = await synapse.ui.confirm('Delete this item?');
+```
+
+### `synapse.auth`
+
+Host-managed authentication. OAuth flows are handled natively.
+
+```javascript
+// Check if authenticated
+const isAuth = await synapse.auth.isAuthenticated('jira');
+
+// Trigger OAuth flow
+if (!isAuth) {
+  await synapse.auth.authenticate('jira');
+}
+
+// Subsequent requests to jira.com will include the token automatically
+
+// Logout
+await synapse.auth.logout('jira');
+```
+
+### `synapse.storage`
+
+Persistent key-value storage (per-plugin).
+
+```javascript
+// Store data
+await synapse.storage.set('defaultProject', 'PROJ-1');
+await synapse.storage.set('settings', { theme: 'dark' });
+
+// Retrieve
+const project = await synapse.storage.get('defaultProject');
+
+// Delete
+await synapse.storage.delete('defaultProject');
+
+// Clear all
+await synapse.storage.clear();
+```
+
+### `synapse.upload(params)`
+
+Upload files captured by the host.
+
+```javascript
+const result = await synapse.upload({
+  fileRef: ctx.input.imageRef,  // blob://...
+  url: 'https://api.example.com/attachments',
+  fieldName: 'file',
+  formFields: { ticketId: 'PROJ-123' }
+});
+
+if (result.success) {
+  console.log('Uploaded!', result.response);
+}
+```
+
+### Result Helpers
+
+```javascript
+// Success
+return synapse.success({ 
+  id: '123',
+  link: 'https://app.example.com/item/123'  // Deep link to open
+});
+
+// Failure
+return synapse.fail({
+  reason: 'validation_error',
+  message: 'Title is required',
+  retryable: true
 });
 ```
 
-### Examples
+---
 
-#### Data Utility
-```javascript
-synapse.register('clean_text', async (params) => {
-  return synapse.success({ cleaned: params.text.trim() });
-});
-```
+## Context Object
 
-#### Search Plugin
-```javascript
-synapse.register('search', async (params) => {
-  const res = await synapse.net.get(`https://api.duckduckgo.com/?q=${params.q}&format=json`);
-  if (res.status === 200) {
-    return synapse.success({ result: res.data });
-  }
-  throw new Error("Search failed");
-});
+When a handler is called, it receives a context object:
+
+```typescript
+interface SynapseContext {
+  input: {
+    type: 'image' | 'text' | 'url' | 'file' | 'mixed';
+    text?: string;        // OCR/extracted text
+    imageRef?: string;    // blob:// reference for uploads
+    url?: string;         // Shared URL
+    sourceApp?: string;   // Source app bundle ID
+  };
+  llm: {
+    intent: string;              // Detected intent
+    entities: Record<string, any>; // Extracted parameters
+    confidence?: number;         // 0-1 confidence score
+  };
+  user?: {
+    locale?: string;
+    timezone?: string;
+  };
+}
 ```
 
 ---
 
 ## 📱 For Host Developers (Flutter)
 
-The Host Application is responsible for the "Thinking" (LLM) and the "dispatching" (QuickJS).
-
 ### Setup
-1.  Add dependencies: `flutter_js`, `http`.
-2.  Load the **Synapse Interface** (built from this SDK) into the runtime.
 
-### Dart Implementation
-```dart
-// 1. Initialize Engine
-final engine = getJavascriptRuntime();
-
-// 2. Load SDK
-final sdkJs = await rootBundle.loadString('assets/synapse.global.js');
-engine.evaluate(sdkJs);
-
-// 3. Load Plugin
-engine.evaluate(pluginSourceCode);
-
-// 4. Dispatch Intent
-final code = "synapse._dispatch('create_event', $jsonParams)";
-engine.evaluate(code);
+1. Add dependencies to `pubspec.yaml`:
+```yaml
+dependencies:
+  flutter_js: ^0.8.5
+  http: ^1.6.0
 ```
 
-See [`flutter_example/lib/synapse_host.dart`](flutter_example/lib/synapse_host.dart) for the complete implementation of the **Async Bridge**.
+2. Load SDK and plugins:
+```dart
+final host = SynapseHost();
+await host.init();
+
+// Load SDK bundle
+final sdk = await rootBundle.loadString('assets/synapse.global.js');
+await host.loadSdk(sdk);
+
+// Load plugin
+await host.loadPlugin(pluginCode, pluginId: 'my_plugin');
+
+// Set up callbacks
+host.onStatusChanged = (status, data) {
+  print('Plugin finished: $data');
+};
+
+host.onToast = (message, duration) {
+  // Show toast
+};
+
+host.onConfirm = (message, confirm, cancel) async {
+  // Show dialog, return true/false
+};
+
+host.onAuthCheck = (provider) async {
+  // Return true if authenticated
+};
+
+host.onAuthRequest = (provider) async {
+  // Open OAuth flow, return true on success
+};
+
+// Dispatch intent
+await host.dispatch('create_event', {
+  'input': {'type': 'text', 'text': 'Meeting tomorrow'},
+  'llm': {'intent': 'create_event', 'entities': {'title': 'Meeting'}},
+});
+```
+
+See [`flutter_example/lib/synapse_host.dart`](flutter_example/lib/synapse_host.dart) for the complete implementation.
+
+---
 
 ## Build
-To build the SDK bundle:
+
 ```bash
 npm install
 npm run build
 ```
-Output: `dist/index.global.js`
+
+Output: `dist/synapse.global.js` — copy this to your Flutter assets.
+
+---
+
+## License
+
+MIT

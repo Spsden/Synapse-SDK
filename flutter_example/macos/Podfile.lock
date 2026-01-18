@@ -1,21 +1,59 @@
 PODS:
+  - AppAuth (2.0.0):
+    - AppAuth/Core (= 2.0.0)
+    - AppAuth/ExternalUserAgent (= 2.0.0)
+  - AppAuth/Core (2.0.0)
+  - AppAuth/ExternalUserAgent (2.0.0):
+    - AppAuth/Core
+  - flutter_appauth (0.0.1):
+    - AppAuth (= 2.0.0)
+    - FlutterMacOS
   - flutter_js (0.0.1):
     - FlutterMacOS
+  - flutter_secure_storage_macos (6.1.3):
+    - FlutterMacOS
   - FlutterMacOS (1.0.0)
+  - path_provider_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - webview_flutter_wkwebview (0.0.1):
+    - Flutter
+    - FlutterMacOS
 
 DEPENDENCIES:
+  - flutter_appauth (from `Flutter/ephemeral/.symlinks/plugins/flutter_appauth/macos`)
   - flutter_js (from `Flutter/ephemeral/.symlinks/plugins/flutter_js/macos`)
+  - flutter_secure_storage_macos (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
+  - webview_flutter_wkwebview (from `Flutter/ephemeral/.symlinks/plugins/webview_flutter_wkwebview/darwin`)
+
+SPEC REPOS:
+  trunk:
+    - AppAuth
 
 EXTERNAL SOURCES:
+  flutter_appauth:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_appauth/macos
   flutter_js:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_js/macos
+  flutter_secure_storage_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_macos/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
+  path_provider_foundation:
+    :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
+  webview_flutter_wkwebview:
+    :path: Flutter/ephemeral/.symlinks/plugins/webview_flutter_wkwebview/darwin
 
 SPEC CHECKSUMS:
+  AppAuth: 1c1a8afa7e12f2ec3a294d9882dfa5ab7d3cb063
+  flutter_appauth: 84cbf57c7926a898a612726e99241a031e33fac3
   flutter_js: 79c3c70d33ba464c67d8eb88639a61aa718cd8b8
+  flutter_secure_storage_macos: 7f45e30f838cf2659862a4e4e3ee1c347c2b3b54
   FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
+  path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
+  webview_flutter_wkwebview: 1821ceac936eba6f7984d89a9f3bcb4dea99ebb2
 
 PODFILE CHECKSUM: 7eb978b976557c8c1cd717d8185ec483fd090a82
 
