@@ -1,0 +1,52 @@
+{
+    "id": "com.synapse.google.keep",
+    "name": "Google Keep",
+    "version": "1.0.0",
+    "description": "Save notes and reminders to Google Keep",
+    "author": "Synapse",
+    "icon": "keep",
+    "security": {
+        "allowedDomains": [
+            "keep.googleapis.com"
+        ],
+        "permissions": [
+            "network",
+            "auth",
+            "storage"
+        ]
+    },
+    "auth": {
+        "provider": "google",
+        "scopes": [
+            "https://www.googleapis.com/auth/keep"
+        ]
+    },
+    "triggers": [
+        "save_note",
+        "create_reminder",
+        "add_to_keep"
+    ],
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": "Note title"
+            },
+            "body": {
+                "type": "string",
+                "description": "Note content"
+            },
+            "labels": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "Labels to apply to the note"
+            }
+        },
+        "required": [
+            "body"
+        ]
+    }
+}

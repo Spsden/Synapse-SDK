@@ -40,6 +40,7 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
 
   @override
   void initState() {
+    print("starts here");
     super.initState();
     _initSynapse();
   }
@@ -59,6 +60,16 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
     final sdkJs = await rootBundle.loadString('assets/synapse.global.js');
     await _host.loadSdk(sdkJs);
     _log('SDK loaded');
+
+    // Load Google Keep Plugin
+    try {
+      final keepManifest = await rootBundle.loadString('assets/plugins/com.synapse.google.keep/manifest.json');
+      final keepScript = await rootBundle.loadString('assets/plugins/com.synapse.google.keep/plugin.js');
+      await _host.loadPlugin(keepScript, pluginId: 'com.synapse.google.keep');
+      _log('Google Keep Plugin loaded');
+    } catch (e) {
+      _log('Failed to load Google Keep: $e');
+    }
 
     // ==========================================================================
     // Example Plugin using NEW SDK API
@@ -439,6 +450,25 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
     });
   }
 
+  void _runGoogleKeep() {
+    setState(() {
+      _status = 'Saving to Keep...';
+      _result = '';
+    });
+    _log('Dispatching: save_note');
+
+    _host.dispatch('save_note', {
+      'input': {'type': 'text', 'text': 'Buy milk and cookies'},
+      'llm': {
+        'intent': 'save_note',
+        'entities': {
+          'title': 'Groceries',
+          'body': 'Buy milk and cookies',
+        }
+      },
+    });
+  }
+
   void _runUiDemo() {
     setState(() {
       _status = 'Opening UI...';
@@ -521,6 +551,15 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
                   onPressed: _isInit ? _runAuthDemo : null,
                   icon: const Icon(Icons.lock_open),
                   label: const Text('Auth Demo'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _isInit ? _runGoogleKeep : null,
+                  icon: const Icon(Icons.note_add),
+                  label: const Text('Google Keep'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber[700],
+                    foregroundColor: Colors.white,
+                  ),
                 ),
                 ElevatedButton.icon(
                   onPressed: _isInit ? _runUiDemo : null,

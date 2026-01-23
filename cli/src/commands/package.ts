@@ -18,7 +18,7 @@ export async function packagePlugin(directory: string, options: PackageOptions):
         throw new Error(`Directory not found: ${absDir}`);
     }
 
-    // Check for required files
+    // Check for required filesx
     const manifestPath = path.join(absDir, 'manifest.json');
     const pluginPath = path.join(absDir, 'plugin.js');
 

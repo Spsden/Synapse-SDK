@@ -294,6 +294,13 @@ var SynapseSDK = (() => {
       Bridge.send("log", { message: `[Synapse] Registered intent: ${intent}` });
     }
     /**
+     * Log a message to the host.
+     * @param message - The message to log
+     */
+    log(message) {
+      Bridge.send("log", { message });
+    }
+    /**
      * Internal: Called by the host to dispatch an intent.
      * @internal
      */

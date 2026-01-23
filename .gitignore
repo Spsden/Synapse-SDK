@@ -3,3 +3,5 @@ dist
 .DS_Store
 *.log
 .idea
+cli/node_modules
+cli/dist

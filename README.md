@@ -278,6 +278,31 @@ Output: `dist/synapse.global.js` — copy this to your Flutter assets.
 
 ---
 
+## 🛠️ CLI Tools
+
+The SDK includes a command-line interface for creating, packaging, and validating plugins.
+
+```bash
+# Build the CLI
+cd cli
+npm install && npm run build
+```
+
+### Usage
+
+```bash
+# Create a new plugin
+node dist/index.js init "My Plugin"
+
+# Package a plugin to .synx for distribution
+node dist/index.js package ./my-plugin -o my-plugin.synx
+
+# Validate a package
+node dist/index.js validate my-plugin.synx
+```
+
+See [cli/README.md](cli/README.md) for full documentation.
+
 ## License
 
 MIT

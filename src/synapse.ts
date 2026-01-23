@@ -120,6 +120,14 @@ export class Synapse {
     }
 
     /**
+     * Log a message to the host.
+     * @param message - The message to log
+     */
+    log(message: string): void {
+        Bridge.send('log', { message });
+    }
+
+    /**
      * Internal: Called by the host to dispatch an intent.
      * @internal
      */
