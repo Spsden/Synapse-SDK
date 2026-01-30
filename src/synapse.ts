@@ -309,6 +309,24 @@ export class Synapse {
          */
         logout: async (provider: string): Promise<void> => {
             await Bridge.send('auth_logout', { provider });
+        },
+
+        /**
+         * Get a valid access token for a provider.
+         * The host handles token refresh automatically.
+         * 
+         * @param provider - Provider ID (e.g., "google", "notion")
+         * @returns The access token string
+         * @throws Error if not authenticated
+         * 
+         * @example
+         * const token = await synapse.auth.getAccessToken('google');
+         * const res = await synapse.fetch('https://keep.googleapis.com/v1/notes', {
+         *   headers: { Authorization: `Bearer ${token}` }
+         * });
+         */
+        getAccessToken: async (provider: string): Promise<string> => {
+            return Bridge.send('auth_getToken', { provider }, true);
         }
     };
 
@@ -362,6 +380,41 @@ export class Synapse {
          */
         clear: async (): Promise<void> => {
             await Bridge.send('storage_clear', {});
+        }
+    };
+
+    // =========================================================================
+    // Config Namespace
+    // =========================================================================
+
+    /**
+     * Plugin configuration for API keys and user settings.
+     * Values are stored encrypted and scoped to the plugin.
+     * Config fields are declared in plugin.json and the host auto-generates UI.
+     */
+    config = {
+        /**
+         * Get a config value.
+         * 
+         * @param key - Config key as declared in plugin.json
+         * @returns The config value or null if not set
+         * 
+         * @example
+         * const apiKey = await synapse.config.get('openai_api_key');
+         */
+        get: async (key: string): Promise<string | null> => {
+            return Bridge.send('config_get', { key }, true);
+        },
+
+        /**
+         * Set a config value programmatically.
+         * Note: Users typically set these via the plugin settings UI.
+         * 
+         * @param key - Config key
+         * @param value - Value to store
+         */
+        set: async (key: string, value: string): Promise<void> => {
+            await Bridge.send('config_set', { key, value });
         }
     };
 

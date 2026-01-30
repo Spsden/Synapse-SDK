@@ -182,6 +182,34 @@ function validateManifest(manifest: PluginManifest, errors: string[], warnings: 
         warnings.push('manifest.author is recommended');
     }
 
+    // Auth
+    if (manifest.auth) {
+        if (!['oauth2', 'api_key', 'none'].includes(manifest.auth.type)) {
+            errors.push('manifest.auth.type must be one of: oauth2, api_key, none');
+        }
+        if (manifest.auth.type === 'oauth2' && !manifest.auth.provider) {
+            errors.push('manifest.auth.provider is required when auth.type is oauth2');
+        }
+    }
+
+    // Config
+    if (manifest.config) {
+        if (!Array.isArray(manifest.config)) {
+            errors.push('manifest.config must be an array');
+        } else {
+            manifest.config.forEach((field, index) => {
+                if (!field.key) errors.push(`manifest.config[${index}].key is required`);
+                if (!field.label) errors.push(`manifest.config[${index}].label is required`);
+                if (!['text', 'password', 'number', 'boolean', 'select'].includes(field.type)) {
+                    errors.push(`manifest.config[${index}].type must be one of: text, password, number, boolean, select`);
+                }
+                if (field.type === 'select' && (!field.options || field.options.length === 0)) {
+                    errors.push(`manifest.config[${index}].options is required when type is select`);
+                }
+            });
+        }
+    }
+
     // Security
     if (!manifest.security?.allowedDomains || manifest.security.allowedDomains.length === 0) {
         warnings.push('No allowed domains specified - plugin cannot make network requests');

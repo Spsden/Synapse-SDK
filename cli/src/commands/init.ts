@@ -33,6 +33,12 @@ export async function initPlugin(name: string, targetDir?: string): Promise<stri
             permissions: ['network']
         },
 
+        auth: {
+            type: 'none'
+        },
+
+        config: [],
+
         triggers: ['my_action'],
 
         inputSchema: {

@@ -1,0 +1,24 @@
+{
+  "id": "test.plugin",
+  "name": "test_plugin",
+  "version": "1.0.0",
+  "description": "A Synapse plugin",
+  "author": "",
+  "security": {
+    "allowedDomains": [],
+    "permissions": [
+      "network"
+    ]
+  },
+  "triggers": [
+    "my_action"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -164,3 +164,49 @@ export interface BridgeMessage {
     id?: string;
     payload?: any;
 }
+
+// =============================================================================
+// Config Types
+// =============================================================================
+
+/** Config field type for plugin settings UI */
+export type ConfigFieldType = 'text' | 'password' | 'number' | 'boolean' | 'select';
+
+/**
+ * Config field definition from plugin.json manifest.
+ */
+export interface ConfigField {
+    /** Unique key for the config value */
+    key: string;
+    /** Display label for UI */
+    label: string;
+    /** Field type */
+    type: ConfigFieldType;
+    /** Default value */
+    default?: string;
+    /** Help text */
+    description?: string;
+    /** Whether required */
+    required?: boolean;
+    /** Options for 'select' type */
+    options?: string[];
+}
+
+// =============================================================================
+// Auth Types  
+// =============================================================================
+
+/** Auth type for plugin manifest */
+export type AuthType = 'oauth2' | 'api_key' | 'none';
+
+/**
+ * Auth configuration from plugin.json manifest.
+ */
+export interface AuthConfig {
+    /** Type of authentication */
+    type: AuthType;
+    /** OAuth provider (for oauth2 type) */
+    provider?: string;
+    /** Required OAuth scopes */
+    scopes?: string[];
+}

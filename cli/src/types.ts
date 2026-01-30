@@ -19,9 +19,20 @@ export interface PluginManifest {
     };
 
     auth?: {
-        provider: string;
+        type: 'oauth2' | 'api_key' | 'none';
+        provider?: string;
         scopes?: string[];
     };
+
+    config?: Array<{
+        key: string;
+        label: string;
+        type: 'text' | 'password' | 'number' | 'boolean' | 'select';
+        default?: string;
+        description?: string;
+        required?: boolean;
+        options?: string[];
+    }>;
 
     triggers: string[];
     inputSchema?: Record<string, unknown>;
