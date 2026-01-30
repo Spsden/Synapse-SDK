@@ -1,0 +1,26 @@
+{
+  "id": "test.todo",
+  "name": "Add to Todo",
+  "version": "1.0.0",
+  "description": "Test plugin for Todo extension",
+  "author": "Antigravity",
+  "security": {
+    "allowedDomains": [
+      "jsonplaceholder.typicode.com"
+    ],
+    "permissions": [
+      "network"
+    ]
+  },
+  "triggers": [
+    "add_todo"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      }
+    }
+  }
+}
