@@ -210,3 +210,27 @@ export interface AuthConfig {
     /** Required OAuth scopes */
     scopes?: string[];
 }
+
+// =============================================================================
+// System Types
+// =============================================================================
+
+/**
+ * Options for sending Android Intents
+ */
+export interface IntentOptions {
+    /** Action to perform (e.g., "android.intent.action.SEND") */
+    action: string;
+    /** MIME type (e.g., "text/plain") */
+    type?: string;
+    /** Target package name (e.g., "com.google.android.keep") */
+    package?: string;
+    /** Target class name */
+    class?: string;
+    /** Intent category */
+    category?: string;
+    /** Extra data key-value pairs */
+    extras?: Record<string, string | number | boolean>;
+    /** Intent flags */
+    flags?: number[];
+}

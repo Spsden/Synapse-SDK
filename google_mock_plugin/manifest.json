@@ -1,0 +1,30 @@
+{
+    "id": "com.synapse.google.mock",
+    "name": "google_mock",
+    "version": "1.0.0",
+    "description": "A mock Google plugin for testing OAuth flow",
+    "author": "Synapse Demo",
+    "security": {
+        "allowedDomains": [
+            "googleapis.com"
+        ],
+        "permissions": [
+            "network",
+            "ui",
+            "storage"
+        ]
+    },
+    "triggers": [
+        "list_notes",
+        "add_note",
+        "logout"
+    ],
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "text": {
+                "type": "string"
+            }
+        }
+    }
+}

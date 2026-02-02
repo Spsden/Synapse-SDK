@@ -1,0 +1,18 @@
+{
+  "id": "test.todo.ui",
+  "name": "Todo UI",
+  "version": "1.0.0",
+  "description": "Test plugin for UI capabilities",
+  "author": "Antigravity",
+  "security": {
+    "allowedDomains": [],
+    "permissions": []
+  },
+  "triggers": [
+    "open_todo_form"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  }
+}

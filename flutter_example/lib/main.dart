@@ -38,6 +38,9 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
   bool _isInit = false;
   final List<String> _logs = [];
 
+  // Mock Authentication State
+  final Set<String> _authenticatedProviders = {};
+
   @override
   void initState() {
     print("starts here");
@@ -61,218 +64,46 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
     await _host.loadSdk(sdkJs);
     _log('SDK loaded');
 
-    // Load Google Keep Plugin
-    try {
-      final keepManifest = await rootBundle.loadString('assets/plugins/com.synapse.google.keep/manifest.json');
-      final keepScript = await rootBundle.loadString('assets/plugins/com.synapse.google.keep/plugin.js');
-      await _host.loadPlugin(keepScript, pluginId: 'com.synapse.google.keep');
-      _log('Google Keep Plugin loaded');
-    } catch (e) {
-      _log('Failed to load Google Keep: $e');
-    }
-
     // ==========================================================================
-    // Example Plugin using NEW SDK API
+    // Load GOOGLE MOCK Plugin (Embedded for Test)
     // ==========================================================================
-    const pluginJs = """
-      // Plugin: create_event
-      // Demonstrates: fetch API, context object, storage
-      synapse.register('create_event', async (ctx) => {
-        // Access the new context structure
-        const { title, time } = ctx.llm.entities;
+    const googleMockJs = """
+      synapse.register('list_notes', async (ctx) => {
+        synapse.log('google_mock: list_notes triggered');
         
-        if (!title) {
-          return synapse.fail({ reason: 'validation', message: 'Title is required' });
-        }
-
-        // Use the new fetch API (mirrors browser fetch)
-        const res = await synapse.fetch('https://jsonplaceholder.typicode.com/comments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: title,
-            email: 'user@synapse.com',
-            body: time || 'No time specified',
-            postId: 1,
-          })
-        });
-
-        // Use familiar Response API
-        if (res.ok) {
-          const data = await res.json();
-          
-          // Store last created event in plugin storage
-          await synapse.storage.set('lastEvent', { title, id: data.id });
-          
-          return synapse.success({
-            id: data.id,
-            message: 'Event created!',
-            serverResponse: data
-          });
-        } else {
-          return synapse.fail({ 
-            reason: 'api_error', 
-            message: 'Server returned ' + res.status + ': ' + res.statusText 
-          });
-        }
-      });
-
-      // Plugin: search
-      // Demonstrates: GET request with fetch
-      synapse.register('search', async (ctx) => {
-        const query = ctx.llm.entities.query || ctx.input.text;
-        
-        const res = await synapse.fetch(
-          'https://jsonplaceholder.typicode.com/posts?userId=' + encodeURIComponent(query)
-        );
-        
-        if (res.ok) {
-          const results = await res.json();
-          return synapse.success({ count: results.length, results });
-        }
-        
-        return synapse.fail({ reason: 'search_failed', message: 'Search failed' });
-      });
-
-      // Plugin: get_last_event
-      // Demonstrates: storage retrieval
-      synapse.register('get_last_event', async (ctx) => {
-        const lastEvent = await synapse.storage.get('lastEvent');
-        
-        if (lastEvent) {
-          return synapse.success({ lastEvent });
-        }
-        
-        return synapse.fail({ reason: 'not_found', message: 'No previous event found' });
-      });
-
-      // Plugin: auth_demo
-      // Demonstrates: authentication flow
-      synapse.register('auth_demo', async (ctx) => {
-        const isAuth = await synapse.auth.isAuthenticated('demo_provider');
+        const isAuth = await synapse.auth.isAuthenticated('google');
         
         if (!isAuth) {
+          synapse.log('google_mock: Not authenticated, requesting login...');
           try {
-            await synapse.auth.authenticate('demo_provider');
+            await synapse.auth.authenticate('google');
+            synapse.log('google_mock: Authentication successful');
           } catch (e) {
-            return synapse.fail({ reason: 'auth_failed', message: e.message });
+            return synapse.fail({ reason: 'auth_failed', message: 'User declined login' });
           }
         }
-        
-        return synapse.success({ authenticated: true, provider: 'demo_provider' });
+
+        synapse.log('google_mock: Fetching notes...');
+        // Simulate network delay
+        await new Promise(r => setTimeout(r, 500));
+
+        return synapse.success({
+          notes: [
+            { id: '1', title: 'Groceries', body: 'Milk, Eggs, Bread' },
+            { id: '2', title: 'Ideas', body: 'Build a robot that answers emails' },
+            { id: '3', title: 'To Do', body: 'Finish Synapse SDK' }
+          ]
+        });
       });
 
-      // Plugin: ui_demo
-      // Demonstrates: showing custom UI to user
-      synapse.register('ui_demo', async (ctx) => {
-        // Show a custom HTML interface
-        const result = await synapse.ui.show(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <style>
-              body { 
-                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-                padding: 20px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                margin: 0;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-              }
-              .container {
-                background: white;
-                border-radius: 16px;
-                padding: 32px;
-                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-                max-width: 400px;
-                width: 100%;
-              }
-              h2 { margin-top: 0; color: #333; }
-              .options { display: flex; flex-direction: column; gap: 12px; margin: 20px 0; }
-              button {
-                padding: 14px 24px;
-                border: none;
-                border-radius: 8px;
-                font-size: 16px;
-                cursor: pointer;
-                transition: transform 0.1s;
-              }
-              button:hover { transform: scale(1.02); }
-              .primary { background: #667eea; color: white; }
-              .secondary { background: #f0f0f0; color: #333; }
-              input, select {
-                width: 100%;
-                padding: 12px;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-                font-size: 16px;
-                box-sizing: border-box;
-                margin-bottom: 12px;
-              }
-              label { display: block; margin-bottom: 6px; font-weight: 500; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <h2>Select Project</h2>
-              <p>Choose where to create the task:</p>
-              
-              <label>Project</label>
-              <select id="project">
-                <option value="PROJ-1">Engineering</option>
-                <option value="PROJ-2">Design</option>
-                <option value="PROJ-3">Marketing</option>
-              </select>
-              
-              <label>Priority</label>
-              <select id="priority">
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-              
-              <div class="options">
-                <button class="primary" onclick="submit()">Create Task</button>
-                <button class="secondary" onclick="cancel()">Cancel</button>
-              </div>
-            </div>
-            
-            <script>
-              function submit() {
-                const project = document.getElementById('project').value;
-                const priority = document.getElementById('priority').value;
-                SynapseBridge.postMessage(JSON.stringify({ 
-                  action: 'create',
-                  project: project,
-                  priority: priority
-                }));
-              }
-              function cancel() {
-                SynapseBridge.postMessage(JSON.stringify({ action: 'cancel' }));
-              }
-            </script>
-          </body>
-          </html>
-        `, { title: 'Select Project' });
-        
-        if (result && result.action === 'create') {
-          // Show a toast to confirm
-          await synapse.ui.toast('Task created in ' + result.project + '!');
-          return synapse.success({ 
-            project: result.project, 
-            priority: result.priority,
-            message: 'Task created successfully'
-          });
-        }
-        
-        return synapse.fail({ reason: 'cancelled', message: 'User cancelled' });
+      synapse.register('logout', async (ctx) => {
+        await synapse.auth.logout('google');
+        return synapse.success({ message: 'Logged out of Mock Google' });
       });
     """;
-    
-    await _host.loadPlugin(pluginJs, pluginId: 'example_plugin');
-    _log('Plugin loaded');
+
+    await _host.loadPlugin(googleMockJs, pluginId: 'com.synapse.google.mock');
+    _log('Google Mock Plugin loaded');
 
     // ==========================================================================
     // Set up Host Callbacks
@@ -293,7 +124,7 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
       });
     };
     
-    // UI Show callback - displays WebView with plugin HTML
+    // UI Show callback
     _host.onUiShow = (html, options) async {
       _log('UI Show requested');
       return await showDialog<dynamic>(
@@ -316,7 +147,6 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
     
     // Confirm callback
     _host.onConfirm = (message, confirmLabel, cancelLabel) async {
-      _log('Confirm dialog: $message');
       final result = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -337,34 +167,82 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
       return result ?? false;
     };
     
-    // Auth callbacks (demo implementation)
+    // Auth callbacks (Stateful Mock)
     _host.onAuthCheck = (provider) async {
       _log('Auth check: $provider');
-      // Demo: always return false to trigger auth flow
-      return false;
+      return _authenticatedProviders.contains(provider);
     };
     
     _host.onAuthRequest = (provider) async {
       _log('Auth request: $provider');
-      // Demo: simulate auth with a delay and dialog
+      
+      final usernameController = TextEditingController();
+      final passwordController = TextEditingController();
+      
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text('Authenticate with $provider'),
-          content: const Text('This is a demo. In production, this would open OAuth.'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+               const Icon(Icons.security, size: 48, color: Colors.blue),
+               const SizedBox(height: 16),
+               Text('Plugin is requesting access to your $provider account.'),
+               const SizedBox(height: 8),
+               TextField(
+                 controller: usernameController,
+                 decoration: const InputDecoration(labelText: 'Username (Mock)', hintText: 'Any value'),
+               ),
+               TextField(
+                 controller: passwordController,
+                 decoration: const InputDecoration(labelText: 'Password (Mock)', hintText: 'Any value'),
+                 obscureText: true,
+               ),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
               child: const Text('Cancel'),
             ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Authenticate'),
+            FilledButton(
+              onPressed: () {
+                if (usernameController.text.isNotEmpty && passwordController.text.isNotEmpty) {
+                  Navigator.of(ctx).pop(true);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter mock credentials')),
+                  );
+                }
+              },
+              child: const Text('Login'),
             ),
           ],
         ),
       );
-      return confirmed ?? false;
+      
+      // Clean up controllers
+      usernameController.dispose();
+      passwordController.dispose();
+      
+      if (confirmed == true) {
+        setState(() {
+          _authenticatedProviders.add(provider);
+        });
+        _log('Auth Success: $provider');
+        return true;
+      } else {
+        _log('Auth Cancelled: $provider');
+        return false;
+      }
+    };
+
+    _host.onAuthLogout = (provider) async {
+       _log('Logout: \$provider');
+       setState(() {
+         _authenticatedProviders.remove(provider);
+       });
     };
 
     setState(() => _isInit = true);
@@ -380,105 +258,29 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
     }
   }
 
-  void _runCreateEvent() {
+  void _runGoogleMockList() {
     setState(() {
-      _status = 'Running...';
+      _status = 'Listing Notes...';
       _result = '';
     });
-    _log('Dispatching: create_event');
+    _log('Dispatching: list_notes');
 
-    // Use the new context structure
-    _host.dispatch('create_event', {
-      'input': {
-        'type': 'text',
-        'text': 'Meeting with team tomorrow at 10am',
-      },
-      'llm': {
-        'intent': 'create_event',
-        'entities': {
-          'title': 'Team Meeting',
-          'time': 'Tomorrow 10am',
-        },
-        'confidence': 0.95,
-      },
-      'user': {
-        'locale': 'en-US',
-        'timezone': 'America/New_York',
-      }
-    });
-  }
-
-  void _runSearch() {
-    setState(() {
-      _status = 'Searching...';
-      _result = '';
-    });
-    _log('Dispatching: search');
-
-    _host.dispatch('search', {
-      'input': {'type': 'text', 'text': '1'},
-      'llm': {
-        'intent': 'search',
-        'entities': {'query': '1'},
-      },
-    });
-  }
-
-  void _runGetLastEvent() {
-    setState(() {
-      _status = 'Retrieving...';
-      _result = '';
-    });
-    _log('Dispatching: get_last_event');
-
-    _host.dispatch('get_last_event', {
+    _host.dispatch('list_notes', {
       'input': {'type': 'text'},
-      'llm': {'intent': 'get_last_event', 'entities': {}},
+      'llm': {'intent': 'list_notes', 'entities': {}},
     });
   }
 
-  void _runAuthDemo() {
+  void _runGoogleMockLogout() {
     setState(() {
-      _status = 'Authenticating...';
+      _status = 'Logging out...';
       _result = '';
     });
-    _log('Dispatching: auth_demo');
+    _log('Dispatching: logout');
 
-    _host.dispatch('auth_demo', {
+    _host.dispatch('logout', {
       'input': {'type': 'text'},
-      'llm': {'intent': 'auth_demo', 'entities': {}},
-    });
-  }
-
-  void _runGoogleKeep() {
-    setState(() {
-      _status = 'Saving to Keep...';
-      _result = '';
-    });
-    _log('Dispatching: save_note');
-
-    _host.dispatch('save_note', {
-      'input': {'type': 'text', 'text': 'Buy milk and cookies'},
-      'llm': {
-        'intent': 'save_note',
-        'entities': {
-          'title': 'Groceries',
-          'body': 'Buy milk and cookies',
-        }
-      },
-    });
-  }
-
-  void _runUiDemo() {
-    setState(() {
-      _status = 'Opening UI...';
-      _result = '';
-    });
-    _log('Dispatching: ui_demo');
-
-    _host.dispatch('ui_demo', {
-      'input': {'type': 'text', 'text': 'Create a new task'},
-      'llm': {'intent': 'ui_demo', 'entities': {}},
+      'llm': {'intent': 'logout', 'entities': {}},
     });
   }
 
@@ -492,8 +294,14 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Synapse SDK Demo'),
+        title: const Text('Synapse SDK Verification'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _initSynapse,
+          )
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -507,8 +315,19 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Status: $_status', 
-                      style: Theme.of(context).textTheme.titleMedium),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Status: \$_status', 
+                          style: Theme.of(context).textTheme.titleMedium),
+                        if (_authenticatedProviders.contains('google'))
+                          const Chip(
+                            avatar: Icon(Icons.check_circle, color: Colors.green, size: 18),
+                            label: Text('Google Auth'),
+                            visualDensity: VisualDensity.compact,
+                          )
+                      ],
+                    ),
                     const SizedBox(height: 8),
                     Container(
                       constraints: const BoxConstraints(maxHeight: 150),
@@ -528,52 +347,34 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
             const SizedBox(height: 16),
             
             // Action Buttons
+            const Text('Google Mock Plugin', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 ElevatedButton.icon(
-                  onPressed: _isInit ? _runCreateEvent : null,
-                  icon: const Icon(Icons.event),
-                  label: const Text('Create Event'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _isInit ? _runSearch : null,
-                  icon: const Icon(Icons.search),
-                  label: const Text('Search'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _isInit ? _runGetLastEvent : null,
-                  icon: const Icon(Icons.history),
-                  label: const Text('Get Last Event'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _isInit ? _runAuthDemo : null,
-                  icon: const Icon(Icons.lock_open),
-                  label: const Text('Auth Demo'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _isInit ? _runGoogleKeep : null,
-                  icon: const Icon(Icons.note_add),
-                  label: const Text('Google Keep'),
+                  onPressed: _isInit ? _runGoogleMockList : null,
+                  icon: const Icon(Icons.list),
+                  label: const Text('List Notes'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber[700],
+                    backgroundColor: Colors.blue[700],
                     foregroundColor: Colors.white,
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: _isInit ? _runUiDemo : null,
-                  icon: const Icon(Icons.web),
-                  label: const Text('UI Demo'),
+                  onPressed: _isInit ? _runGoogleMockLogout : null,
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Logout'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
+                    foregroundColor: Colors.red,
                   ),
                 ),
               ],
             ),
             
             const SizedBox(height: 16),
+            const Divider(),
             
             // Logs
             Expanded(
@@ -584,7 +385,7 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Logs', style: Theme.of(context).textTheme.titleSmall),
-                      const Divider(),
+                      const SizedBox(height: 4),
                       Expanded(
                         child: ListView.builder(
                           itemCount: _logs.length,
@@ -606,8 +407,6 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
   }
 }
 
-/// Dialog that displays plugin HTML in a WebView.
-/// Uses webview_flutter to render custom plugin UI.
 class PluginUiDialog extends StatefulWidget {
   final String html;
   final String title;
@@ -633,7 +432,6 @@ class _PluginUiDialogState extends State<PluginUiDialog> {
       ..addJavaScriptChannel(
         'SynapseBridge',
         onMessageReceived: (message) {
-          // Parse the message and return it to the dialog
           try {
             final data = jsonDecode(message.message);
             Navigator.of(context).pop(data);
@@ -656,7 +454,6 @@ class _PluginUiDialogState extends State<PluginUiDialog> {
           height: 600,
           child: Column(
             children: [
-              // Title bar
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
@@ -677,7 +474,6 @@ class _PluginUiDialogState extends State<PluginUiDialog> {
                   ],
                 ),
               ),
-              // WebView
               Expanded(
                 child: WebViewWidget(controller: _controller),
               ),

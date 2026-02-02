@@ -1,0 +1,33 @@
+{
+  "id": "com.notion.add",
+  "name": "Add to Notion",
+  "version": "1.0.0",
+  "description": "Quickly capture notes to your Notion databases",
+  "author": "Antigravity",
+  "security": {
+    "allowedDomains": [
+      "api.notion.com"
+    ],
+    "permissions": [
+      "network",
+      "ui"
+    ]
+  },
+  "auth": {
+    "provider": "notion"
+  },
+  "triggers": [
+    "add_to_notion"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "content": {
+        "type": "string"
+      }
+    }
+  }
+}

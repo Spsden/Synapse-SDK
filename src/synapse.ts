@@ -419,6 +419,46 @@ export class Synapse {
     };
 
     // =========================================================================
+    // System Namespace (Shortcuts & Intents)
+    // =========================================================================
+
+    /**
+     * System utilities for OS-level integration.
+     * Allows plugins to trigger native automations like Shortcuts (iOS) or Intents (Android).
+     */
+    system = {
+        /**
+         * Run an iOS Shortcut.
+         * 
+         * @param name - Name of the shortcut on the user's device
+         * @param input - Optional text input for the shortcut
+         * 
+         * @example
+         * await synapse.system.runShortcut('Save to Keep', 'Buy milk');
+         */
+        runShortcut: async (name: string, input?: string): Promise<void> => {
+            return Bridge.send('system_runShortcut', { name, input }, true);
+        },
+
+        /**
+         * Send an Android Intent.
+         * 
+         * @param options - Intent configuration
+         * 
+         * @example
+         * await synapse.system.sendIntent({
+         *   action: 'android.intent.action.SEND',
+         *   type: 'text/plain',
+         *   package: 'com.google.android.keep',
+         *   extras: { 'android.intent.extra.TEXT': 'Buy milk' }
+         * });
+         */
+        sendIntent: async (options: import('./types').IntentOptions): Promise<void> => {
+            return Bridge.send('system_sendIntent', options, true);
+        }
+    };
+
+    // =========================================================================
     // Upload
     // =========================================================================
 
