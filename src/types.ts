@@ -77,6 +77,11 @@ export interface SynapseRequestInit {
     method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
     headers?: Record<string, string>;
     body?: string | object;
+    /**
+     * OAuth provider identifier for proxy-authenticated requests.
+     * If set, the host will inject the Authorization header.
+     */
+    provider?: string;
 }
 
 /**

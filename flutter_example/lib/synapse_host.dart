@@ -70,6 +70,10 @@ class SynapseHost {
   
   /// Called to logout from a provider.
   Future<void> Function(String provider)? onAuthLogout;
+
+  /// Called to get a valid access token for a provider.
+  /// Return null if not authenticated or token unavailable.
+  Future<String?> Function(String provider)? onAuthGetToken;
   
   /// Called to upload a file. Returns the server response or throws on error.
   Future<Map<String, dynamic>> Function({
@@ -235,26 +239,60 @@ class SynapseHost {
       final method = (req['method'] as String?) ?? 'GET';
       final headers = Map<String, String>.from(req['headers'] ?? {});
       final body = req['body'];
+      final provider = req['provider'] as String?;
 
       debugPrint('[SynapseHost] Fetch: $method $url');
 
-      http.Response response;
-      
-      switch (method.toUpperCase()) {
-        case 'POST':
-          response = await http.post(url, headers: headers, body: body);
-          break;
-        case 'PUT':
-          response = await http.put(url, headers: headers, body: body);
-          break;
-        case 'DELETE':
-          response = await http.delete(url, headers: headers);
-          break;
-        case 'PATCH':
-          response = await http.patch(url, headers: headers, body: body);
-          break;
-        default:
-          response = await http.get(url, headers: headers);
+      if (provider != null && provider.isNotEmpty) {
+        bool isAuth = true;
+        if (onAuthCheck != null) {
+          isAuth = await onAuthCheck!(provider);
+        }
+        if (!isAuth && onAuthRequest != null) {
+          await onAuthRequest!(provider);
+        }
+
+        if (onAuthGetToken == null) {
+          _resolvePromise(id, null, error: 'Auth token provider not configured');
+          return;
+        }
+
+        final token = await onAuthGetToken!(provider);
+        if (token == null || token.isEmpty) {
+          _resolvePromise(id, null, error: 'Failed to obtain access token');
+          return;
+        }
+
+        headers.putIfAbsent('Authorization', () => 'Bearer $token');
+      }
+
+      Future<http.Response> doRequest() async {
+        switch (method.toUpperCase()) {
+          case 'POST':
+            return http.post(url, headers: headers, body: body);
+          case 'PUT':
+            return http.put(url, headers: headers, body: body);
+          case 'DELETE':
+            return http.delete(url, headers: headers);
+          case 'PATCH':
+            return http.patch(url, headers: headers, body: body);
+          default:
+            return http.get(url, headers: headers);
+        }
+      }
+
+      http.Response response = await doRequest();
+
+      // Retry once on 401 for provider-auth requests
+      if (response.statusCode == 401 && provider != null && provider.isNotEmpty) {
+        if (onAuthRequest != null && onAuthGetToken != null) {
+          await onAuthRequest!(provider);
+          final token = await onAuthGetToken!(provider);
+          if (token != null && token.isNotEmpty) {
+            headers['Authorization'] = 'Bearer $token';
+            response = await doRequest();
+          }
+        }
       }
 
       // Build response matching SynapseResponseData interface

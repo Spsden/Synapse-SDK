@@ -1,35 +1,24 @@
 {
-  "id": "google.keep",
-  "name": "Google Keep",
-  "version": "1.0.0",
-  "description": "Create notes in Google Keep",
-  "author": "Antigravity",
-  "security": {
-    "allowedDomains": [
-      "keep.googleapis.com"
+    "id": "com.google.keep.native",
+    "name": "Google Keep (Native)",
+    "version": "1.0.0",
+    "description": "Create notes in Google Keep via native App",
+    "author": "Antigravity",
+    "security": {
+        "allowedDomains": [],
+        "permissions": [
+            "system"
+        ]
+    },
+    "triggers": [
+        "create_note"
     ],
-    "permissions": [
-      "network"
-    ]
-  },
-  "auth": {
-    "provider": "google",
-    "scopes": [
-      "https://www.googleapis.com/auth/keep"
-    ]
-  },
-  "triggers": [
-    "create_note"
-  ],
-  "inputSchema": {
-    "type": "object",
-    "properties": {
-      "title": {
-        "type": "string"
-      },
-      "body": {
-        "type": "string"
-      }
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "body": {
+                "type": "string"
+            }
+        }
     }
-  }
 }

@@ -205,6 +205,24 @@ var SynapseSDK = (() => {
          */
         logout: async (provider) => {
           await Bridge.send("auth_logout", { provider });
+        },
+        /**
+         * Get a valid access token for a provider.
+         * The host handles token refresh automatically.
+         * Prefer `synapse.fetch(..., { provider })` when possible.
+         * 
+         * @param provider - Provider ID (e.g., "google", "notion")
+         * @returns The access token string
+         * @throws Error if not authenticated
+         * 
+         * @example
+         * const token = await synapse.auth.getAccessToken('google');
+         * const res = await synapse.fetch('https://keep.googleapis.com/v1/notes', {
+         *   headers: { Authorization: `Bearer ${token}` }
+         * });
+         */
+        getAccessToken: async (provider) => {
+          return Bridge.send("auth_getToken", { provider }, true);
         }
       };
       // =========================================================================
@@ -253,6 +271,75 @@ var SynapseSDK = (() => {
          */
         clear: async () => {
           await Bridge.send("storage_clear", {});
+        }
+      };
+      // =========================================================================
+      // Config Namespace
+      // =========================================================================
+      /**
+       * Plugin configuration for API keys and user settings.
+       * Values are stored encrypted and scoped to the plugin.
+       * Config fields are declared in plugin.json and the host auto-generates UI.
+       */
+      this.config = {
+        /**
+         * Get a config value.
+         * 
+         * @param key - Config key as declared in plugin.json
+         * @returns The config value or null if not set
+         * 
+         * @example
+         * const apiKey = await synapse.config.get('openai_api_key');
+         */
+        get: async (key) => {
+          return Bridge.send("config_get", { key }, true);
+        },
+        /**
+         * Set a config value programmatically.
+         * Note: Users typically set these via the plugin settings UI.
+         * 
+         * @param key - Config key
+         * @param value - Value to store
+         */
+        set: async (key, value) => {
+          await Bridge.send("config_set", { key, value });
+        }
+      };
+      // =========================================================================
+      // System Namespace (Shortcuts & Intents)
+      // =========================================================================
+      /**
+       * System utilities for OS-level integration.
+       * Allows plugins to trigger native automations like Shortcuts (iOS) or Intents (Android).
+       */
+      this.system = {
+        /**
+         * Run an iOS Shortcut.
+         * 
+         * @param name - Name of the shortcut on the user's device
+         * @param input - Optional text input for the shortcut
+         * 
+         * @example
+         * await synapse.system.runShortcut('Save to Keep', 'Buy milk');
+         */
+        runShortcut: async (name, input) => {
+          return Bridge.send("system_runShortcut", { name, input }, true);
+        },
+        /**
+         * Send an Android Intent.
+         * 
+         * @param options - Intent configuration
+         * 
+         * @example
+         * await synapse.system.sendIntent({
+         *   action: 'android.intent.action.SEND',
+         *   type: 'text/plain',
+         *   package: 'com.google.android.keep',
+         *   extras: { 'android.intent.extra.TEXT': 'Buy milk' }
+         * });
+         */
+        sendIntent: async (options) => {
+          return Bridge.send("system_sendIntent", options, true);
         }
       };
       // =========================================================================
@@ -335,8 +422,8 @@ var SynapseSDK = (() => {
      * Mirrors the native fetch() API for familiarity.
      * 
      * Note: Plugins cannot access the network directly. All requests
-     * are proxied through the host, which may inject authentication
-     * headers for configured OAuth providers.
+     * are proxied through the host. If you pass `provider`, the host
+     * will inject authentication headers on your behalf.
      * 
      * @param url - The URL to fetch
      * @param init - Request options (method, headers, body)
@@ -354,13 +441,23 @@ var SynapseSDK = (() => {
      *   headers: { 'Content-Type': 'application/json' },
      *   body: JSON.stringify({ name: 'John' })
      * });
+     * 
+     * @example
+     * // OAuth proxy request (host injects Authorization)
+     * const res = await synapse.fetch('https://keep.googleapis.com/v1/notes', {
+     *   method: 'POST',
+     *   provider: 'google',
+     *   headers: { 'Content-Type': 'application/json' },
+     *   body: JSON.stringify({ title: 'Note', textContent: { text: 'Buy milk' } })
+     * });
      */
     async fetch(url, init) {
       const request = {
         url,
         method: init?.method || "GET",
         headers: init?.headers || {},
-        body: typeof init?.body === "object" ? JSON.stringify(init.body) : init?.body
+        body: typeof init?.body === "object" ? JSON.stringify(init.body) : init?.body,
+        provider: init?.provider
       };
       const responseData = await Bridge.send("fetch", request, true);
       return new SynapseResponse(responseData);

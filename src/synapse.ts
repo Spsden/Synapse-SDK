@@ -168,8 +168,8 @@ export class Synapse {
      * Mirrors the native fetch() API for familiarity.
      * 
      * Note: Plugins cannot access the network directly. All requests
-     * are proxied through the host, which may inject authentication
-     * headers for configured OAuth providers.
+     * are proxied through the host. If you pass `provider`, the host
+     * will inject authentication headers on your behalf.
      * 
      * @param url - The URL to fetch
      * @param init - Request options (method, headers, body)
@@ -187,13 +187,23 @@ export class Synapse {
      *   headers: { 'Content-Type': 'application/json' },
      *   body: JSON.stringify({ name: 'John' })
      * });
+     * 
+     * @example
+     * // OAuth proxy request (host injects Authorization)
+     * const res = await synapse.fetch('https://keep.googleapis.com/v1/notes', {
+     *   method: 'POST',
+     *   provider: 'google',
+     *   headers: { 'Content-Type': 'application/json' },
+     *   body: JSON.stringify({ title: 'Note', textContent: { text: 'Buy milk' } })
+     * });
      */
     async fetch(url: string, init?: SynapseRequestInit): Promise<SynapseResponse> {
         const request = {
             url,
             method: init?.method || 'GET',
             headers: init?.headers || {},
-            body: typeof init?.body === 'object' ? JSON.stringify(init.body) : init?.body
+            body: typeof init?.body === 'object' ? JSON.stringify(init.body) : init?.body,
+            provider: init?.provider
         };
 
         const responseData = await Bridge.send('fetch', request, true);
@@ -314,6 +324,7 @@ export class Synapse {
         /**
          * Get a valid access token for a provider.
          * The host handles token refresh automatically.
+         * Prefer `synapse.fetch(..., { provider })` when possible.
          * 
          * @param provider - Provider ID (e.g., "google", "notion")
          * @returns The access token string

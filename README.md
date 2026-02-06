@@ -69,7 +69,7 @@ synapse.register('my_intent', async (ctx) => {
 
 ### `synapse.fetch(url, init?)`
 
-Make HTTP requests. Mirrors the browser `fetch()` API.
+Make HTTP requests. Mirrors the browser `fetch()` API. For OAuth providers, pass `provider` and the host injects `Authorization` for you.
 
 ```javascript
 // GET
@@ -81,6 +81,14 @@ const res = await synapse.fetch('https://api.example.com/create', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ name: 'Test' })
+});
+
+// OAuth proxy (host injects Authorization)
+const res = await synapse.fetch('https://keep.googleapis.com/v1/notes', {
+  method: 'POST',
+  provider: 'google',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ title: 'Note', textContent: { text: 'Buy milk' } })
 });
 
 // Response properties
@@ -124,7 +132,7 @@ if (!isAuth) {
   await synapse.auth.authenticate('jira');
 }
 
-// Subsequent requests to jira.com will include the token automatically
+// Subsequent requests using `provider: 'jira'` will include the token automatically
 
 // Logout
 await synapse.auth.logout('jira');
