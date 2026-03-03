@@ -292,29 +292,86 @@ Output: `dist/synapse.global.js` — copy this to your Flutter assets.
 
 ## 🛠️ CLI Tools
 
-The SDK includes a command-line interface for creating, packaging, and validating plugins.
+# Synapse CLI
+
+The Synapse CLI tool helps developers create, package, and validate plugins for the Synapse ecosystem.
+
+## Installation
 
 ```bash
+# Install dependencies
+npm install
+
 # Build the CLI
-cd cli
-npm install && npm run build
+npm run build
+
+# Link globally (optional)
+npm link
 ```
 
-### Usage
+## Usage
+
+### Initialize a Plugin
+
+Create a new plugin project with standard structure:
 
 ```bash
-# Create a new plugin
-node dist/index.js init "My Plugin"
+# Create in current directory
+synapse init "My Plugin"
 
-# Package a plugin to .synx for distribution
-node dist/index.js package ./my-plugin -o my-plugin.synx
-
-# Validate a package
-node dist/index.js validate my-plugin.synx
+# Create in specific directory
+synapse init "My Plugin" --dir ./plugins/my-plugin
 ```
 
-See [cli/README.md](cli/README.md) for full documentation.
+This creates:
+- `manifest.json` — Plugin metadata
+- `plugin.js` — Plugin code
+- `README.md` — Documentation
 
-## License
+### Package a Plugin
 
-MIT
+Bundle your plugin into a `.synx` file for distribution:
+
+```bash
+synapse package ./my-plugin -o my-plugin.synx
+```
+
+This validates the plugin structure and calculates a content hash for the script to ensure integrity.
+
+### Validate a Package
+
+Verify a plugin directory or `.synx` file:
+
+```bash
+# Validate a directory
+synapse validate ./my-plugin
+
+# Validate a package file
+synapse validate my-plugin.synx
+```
+
+This checks:
+- Required files (`manifest.json`, `plugin.js`)
+- Manifest schema validation
+- Content hash integrity
+
+### Inspect a Package
+
+View details about a packaged plugin:
+
+```bash
+synapse info my-plugin.synx
+```
+
+## .synx Format
+
+A `.synx` file is a standard ZIP archive containing:
+
+1.  **`manifest.json`**: Metadata, permissions, and configuration.
+2.  **`plugin.js`**: The pure JavaScript code for the plugin.
+3.  **`icon.png`** (Optional): A 128x128px icon.
+4.  **`README.md`** (Optional): Markdown documentation.
+
+## Security
+
+When packaging, the CLI calculates a **SHA-256 hash** of `plugin.js` and stores it in `manifest.json`. The host application verifies this hash before loading the plugin to prevent tampering.

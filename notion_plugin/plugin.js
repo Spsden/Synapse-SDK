@@ -60,6 +60,7 @@ async function fetchDatabases() {
       'Content-Type': 'application/json',
       'Notion-Version': '2022-06-28'
     },
+    provider: 'notion',
     body: JSON.stringify({
       filter: {
         property: 'object',
@@ -184,6 +185,7 @@ async function createNotionPage(databaseId, title, content) {
       'Content-Type': 'application/json',
       'Notion-Version': '2022-06-28'
     },
+    provider: 'notion',
     body: JSON.stringify(body)
   });
 
