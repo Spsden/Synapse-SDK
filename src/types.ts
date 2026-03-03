@@ -77,6 +77,8 @@ export interface SynapseRequestInit {
     method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
     headers?: Record<string, string>;
     body?: string | object;
+    /** OAuth provider to use for Authorization header (host-injected) */
+    provider?: string;
 }
 
 /**
@@ -141,6 +143,8 @@ export interface UploadParams {
     fieldName?: string;
     /** Additional form fields to include */
     formFields?: Record<string, string>;
+    /** OAuth provider to use for Authorization header (host-injected) */
+    provider?: string;
 }
 
 /**

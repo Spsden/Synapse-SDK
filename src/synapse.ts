@@ -185,7 +185,8 @@ export class Synapse {
      * const res = await synapse.fetch('https://api.example.com/users', {
      *   method: 'POST',
      *   headers: { 'Content-Type': 'application/json' },
-     *   body: JSON.stringify({ name: 'John' })
+     *   body: JSON.stringify({ name: 'John' }),
+     *   provider: 'google'
      * });
      */
     async fetch(url: string, init?: SynapseRequestInit): Promise<SynapseResponse> {
@@ -193,7 +194,8 @@ export class Synapse {
             url,
             method: init?.method || 'GET',
             headers: init?.headers || {},
-            body: typeof init?.body === 'object' ? JSON.stringify(init.body) : init?.body
+            body: typeof init?.body === 'object' ? JSON.stringify(init.body) : init?.body,
+            provider: init?.provider
         };
 
         const responseData = await Bridge.send('fetch', request, true);
@@ -311,23 +313,8 @@ export class Synapse {
             await Bridge.send('auth_logout', { provider });
         },
 
-        /**
-         * Get a valid access token for a provider.
-         * The host handles token refresh automatically.
-         * 
-         * @param provider - Provider ID (e.g., "google", "notion")
-         * @returns The access token string
-         * @throws Error if not authenticated
-         * 
-         * @example
-         * const token = await synapse.auth.getAccessToken('google');
-         * const res = await synapse.fetch('https://keep.googleapis.com/v1/notes', {
-         *   headers: { Authorization: `Bearer ${token}` }
-         * });
-         */
-        getAccessToken: async (provider: string): Promise<string> => {
-            return Bridge.send('auth_getToken', { provider }, true);
-        }
+        // Access tokens are never exposed to plugins. Use synapse.fetch
+        // with `provider` to get Authorization injected by the host.
     };
 
     // =========================================================================
@@ -474,7 +461,8 @@ export class Synapse {
      *   fileRef: ctx.input.imageRef,  // blob://capture_123
      *   url: 'https://api.example.com/attachments',
      *   fieldName: 'attachment',
-     *   formFields: { ticketId: 'PROJ-123' }
+     *   formFields: { ticketId: 'PROJ-123' },
+     *   provider: 'google'
      * });
      */
     async upload(params: UploadParams): Promise<UploadResult> {

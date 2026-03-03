@@ -122,6 +122,7 @@ Edit \`plugin.js\` to implement your plugin logic.
 
 The Synapse SDK provides:
 - \`synapse.fetch()\` - Make HTTP requests
+- \`synapse.fetch(..., { provider })\` - Authenticated requests (host-injected)
 - \`synapse.storage.get/set()\` - Store plugin data
 - \`synapse.ui.toast()\` - Show toast messages
 - \`synapse.auth.authenticate()\` - OAuth authentication

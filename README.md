@@ -124,10 +124,22 @@ if (!isAuth) {
   await synapse.auth.authenticate('jira');
 }
 
-// Subsequent requests to jira.com will include the token automatically
+// Subsequent requests can pass provider to synapse.fetch
 
 // Logout
 await synapse.auth.logout('jira');
+```
+ 
+### Authenticated Requests
+
+Access tokens are never exposed to plugins. Use the `provider` option
+in `synapse.fetch` or `synapse.upload` to have the host inject the
+Authorization header.
+
+```javascript
+const res = await synapse.fetch('https://api.example.com/data', {
+  provider: 'google'
+});
 ```
 
 ### `synapse.storage`
