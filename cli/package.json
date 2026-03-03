@@ -1,35 +1,35 @@
 {
-    "name": "@synapse/cli",
-    "version": "1.0.0",
-    "description": "CLI tool for Synapse plugin development",
-    "main": "dist/index.js",
-    "bin": {
-        "synapse": "./dist/index.js",
-        "synx": "./dist/index.js"
-    },
-    "scripts": {
-        "build": "tsc",
-        "start": "node dist/index.js",
-        "dev": "ts-node src/index.ts"
-    },
-    "keywords": [
-        "synapse",
-        "plugin",
-        "cli"
-    ],
-    "author": "",
-    "license": "ISC",
-    "dependencies": {
-        "archiver": "^7.0.1",
-        "chalk": "^4.1.2",
-        "commander": "^12.1.0",
-        "unzipper": "^0.12.3"
-    },
-    "devDependencies": {
-        "@types/archiver": "^6.0.3",
-        "@types/node": "^22.10.10",
-        "@types/unzipper": "^0.10.10",
-        "ts-node": "^10.9.2",
-        "typescript": "^5.3.3"
-    }
+  "name": "@synapse/cli",
+  "version": "1.0.0",
+  "description": "CLI tool for Synapse plugin development",
+  "main": "dist/index.js",
+  "bin": {
+    "synapse": "./dist/index.js",
+    "synx": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "keywords": [
+    "synapse",
+    "plugin",
+    "cli"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "chalk": "^4.1.2",
+    "commander": "^12.1.0",
+    "unzipper": "^0.12.3"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "@types/node": "^22.10.10",
+    "@types/unzipper": "^0.10.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
 }

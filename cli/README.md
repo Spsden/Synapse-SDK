@@ -34,6 +34,18 @@ This creates:
 - `plugin.js` — Plugin code
 - `README.md` — Documentation
 
+### Authenticated Requests
+
+Plugins should never access OAuth tokens directly. Use the `provider`
+option on `synapse.fetch` to have the host inject the Authorization header.
+
+```javascript
+const res = await synapse.fetch('https://api.example.com/data', {
+  method: 'GET',
+  provider: 'notion'
+});
+```
+
 ### Package a Plugin
 
 Bundle your plugin into a `.synx` file for distribution:
