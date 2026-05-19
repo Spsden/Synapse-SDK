@@ -219,6 +219,9 @@ export interface AuthConfig {
 // System Types
 // =============================================================================
 
+/** Platform identifier returned by synapse.system.platform() */
+export type SynapsePlatform = 'ios' | 'macos' | 'android' | 'web' | 'windows' | 'linux';
+
 /**
  * Options for sending Android Intents
  */
@@ -237,4 +240,87 @@ export interface IntentOptions {
     extras?: Record<string, string | number | boolean>;
     /** Intent flags */
     flags?: number[];
+}
+
+/**
+ * Options for AppleScript execution (macOS only).
+ * Requires 'applescript' permission in plugin manifest.
+ */
+export interface AppleScriptOptions {
+    /** Timeout in milliseconds (default: 10000) */
+    timeoutMs?: number;
+}
+
+// =============================================================================
+// EventKit Types (Calendar & Reminders)
+// =============================================================================
+
+/**
+ * A calendar event returned from synapse.system.calendar.getEvents().
+ */
+export interface CalendarEvent {
+    /** Unique event identifier */
+    eventId: string;
+    /** Event title */
+    title: string;
+    /** ISO 8601 start date */
+    startDate: string;
+    /** ISO 8601 end date */
+    endDate: string;
+    /** Whether this is an all-day event */
+    allDay: boolean;
+    /** Event notes/description */
+    notes?: string;
+    /** Event location */
+    location?: string;
+    /** Calendar ID this event belongs to */
+    calendarId: string;
+    /** Calendar title */
+    calendarTitle?: string;
+}
+
+/**
+ * Calendar info returned from synapse.system.calendar.getCalendars().
+ */
+export interface CalendarInfo {
+    /** Unique calendar identifier */
+    id: string;
+    /** Calendar display title */
+    title: string;
+    /** Calendar color as hex string (e.g., "#FF5733") */
+    color: string;
+    /** Whether this is the user's default calendar */
+    isDefault: boolean;
+}
+
+/**
+ * Options for querying calendar events.
+ */
+export interface CalendarQueryOptions {
+    /** ISO 8601 start date for the query range */
+    startDate: string;
+    /** ISO 8601 end date for the query range */
+    endDate: string;
+    /** Optional calendar ID to filter by */
+    calendarId?: string;
+}
+
+/**
+ * Parameters for creating a calendar event.
+ */
+export interface CalendarEventParams {
+    /** Event title */
+    title: string;
+    /** ISO 8601 start date */
+    startDate: string;
+    /** ISO 8601 end date */
+    endDate: string;
+    /** Event notes/description */
+    notes?: string;
+    /** Event location */
+    location?: string;
+    /** Target calendar ID (uses default if omitted) */
+    calendarId?: string;
+    /** Whether this is an all-day event */
+    allDay?: boolean;
 }

@@ -1,4 +1,9 @@
+// @ts-check
+/// <reference path="./synapse-global.d.ts" />
+
 // Notion Capture - Synapse Plugin
+
+
 
 synapse.register('add_to_notion', async (ctx) => {
   synapse.log('Notion Capture: add_to_notion triggered');

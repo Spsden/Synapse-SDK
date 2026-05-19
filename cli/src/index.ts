@@ -64,10 +64,13 @@ program
         try {
             const dir = await initPlugin(name, options.dir);
             console.log(chalk.green(`✓ Plugin initialized: ${dir}`));
-            console.log(chalk.gray(`\nNext steps:`));
-            console.log(chalk.gray(`  1. Edit manifest.json with your plugin details`));
-            console.log(chalk.gray(`  2. Write your plugin code in plugin.js`));
-            console.log(chalk.gray(`  3. Run: synapse package ${dir}`));
+            console.log();
+            console.log(chalk.bold('  Next steps:'));
+            console.log(chalk.gray(`  1. Open the folder in VS Code: `) + chalk.cyan(`code ${dir}`));
+            console.log(chalk.gray(`  2. Edit manifest.json — `) + chalk.gray(`autocomplete is enabled!`));
+            console.log(chalk.gray(`  3. Write your plugin code in plugin.js`));
+            console.log(chalk.gray(`     Type `) + chalk.cyan(`synapse.`) + chalk.gray(` for full autocomplete & docs`));
+            console.log(chalk.gray(`  4. Package: `) + chalk.cyan(`synapse package ${dir}`));
         } catch (error: any) {
             console.error(chalk.red(`✗ Error: ${error.message}`));
             process.exit(1);

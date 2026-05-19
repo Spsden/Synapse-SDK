@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "target": "ES2020",
+    "moduleResolution": "node",
+    "types": []
+  },
+  "include": [
+    "*.js",
+    "synapse-global.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

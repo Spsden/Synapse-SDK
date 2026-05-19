@@ -5,6 +5,22 @@
     "main": "dist/index.js",
     "module": "dist/index.mjs",
     "types": "dist/index.d.ts",
+    "files": [
+        "dist",
+        "types",
+        "schemas"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.js"
+        },
+        "./global": {
+            "types": "./types/synapse-global.d.ts"
+        },
+        "./schemas/*": "./schemas/*"
+    },
     "scripts": {
         "build": "tsup",
         "test": "node test/test_mock.js"

@@ -1,4 +1,5 @@
 {
+  "$schema": "../schemas/manifest.schema.json",
   "id": "com.notion.add",
   "name": "Add to Notion",
   "version": "1.0.0",

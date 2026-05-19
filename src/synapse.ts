@@ -8,7 +8,13 @@ import {
     UiShowOptions,
     UploadParams,
     UploadResult,
-    StorageValue
+    StorageValue,
+    SynapsePlatform,
+    AppleScriptOptions,
+    CalendarEvent,
+    CalendarInfo,
+    CalendarQueryOptions,
+    CalendarEventParams
 } from './types';
 
 // =============================================================================
@@ -406,14 +412,38 @@ export class Synapse {
     };
 
     // =========================================================================
-    // System Namespace (Shortcuts & Intents)
+    // System Namespace (Shortcuts, Intents, AppleScript & EventKit)
     // =========================================================================
 
     /**
      * System utilities for OS-level integration.
-     * Allows plugins to trigger native automations like Shortcuts (iOS) or Intents (Android).
+     * 
+     * Provides access to:
+     * - **Shortcuts** (iOS/macOS) — trigger Apple Shortcuts
+     * - **Intents** (Android) — send Android Intents
+     * - **AppleScript** (macOS) — execute AppleScript for any scriptable app
+     * - **Calendar** (iOS/macOS) — read/write calendar events via EventKit
+     * - **Platform** — detect the current OS
      */
     system = {
+        /**
+         * Get the current platform.
+         * Use this to build cross-platform plugins with graceful fallbacks.
+         * 
+         * @returns The current platform identifier
+         * 
+         * @example
+         * const platform = await synapse.system.platform();
+         * if (platform === 'macos') {
+         *   await synapse.system.runAppleScript('tell application "Notes" to activate');
+         * } else {
+         *   await synapse.system.runShortcut('Open Notes');
+         * }
+         */
+        platform: async (): Promise<SynapsePlatform> => {
+            return Bridge.send('system_platform', {}, true);
+        },
+
         /**
          * Run an iOS Shortcut.
          * 
@@ -442,7 +472,107 @@ export class Synapse {
          */
         sendIntent: async (options: import('./types').IntentOptions): Promise<void> => {
             return Bridge.send('system_sendIntent', options, true);
-        }
+        },
+
+        // =====================================================================
+        // AppleScript (macOS only)
+        // =====================================================================
+
+        /**
+         * Execute an AppleScript on macOS.
+         * Requires 'applescript' permission in the plugin manifest.
+         * 
+         * The host validates that the script only targets apps declared in
+         * the manifest's `allowedApps` list, and blocks dangerous commands
+         * like `do shell script`.
+         * 
+         * @param script - The AppleScript source code to execute
+         * @param options - Execution options (timeout, etc.)
+         * @returns The script's return value as a string, or null
+         * 
+         * @example
+         * // Create an Apple Note
+         * const result = await synapse.system.runAppleScript(`
+         *   tell application "Notes"
+         *     make new note at folder "Notes" with properties {name:"Hello", body:"World"}
+         *   end tell
+         * `);
+         * 
+         * @example
+         * // Get current track from Apple Music
+         * const track = await synapse.system.runAppleScript(`
+         *   tell application "Music"
+         *     if player state is playing then
+         *       return name of current track
+         *     end if
+         *   end tell
+         * `);
+         */
+        runAppleScript: async (script: string, options?: AppleScriptOptions): Promise<string | null> => {
+            return Bridge.send('system_runAppleScript', {
+                script,
+                timeoutMs: options?.timeoutMs ?? 10000,
+            }, true);
+        },
+
+        // =====================================================================
+        // EventKit Calendar (iOS & macOS)
+        // =====================================================================
+
+        /**
+         * Calendar API powered by EventKit.
+         * Requires 'calendar' permission in the plugin manifest.
+         * Works on both iOS and macOS.
+         */
+        calendar: {
+            /**
+             * List available calendars.
+             * 
+             * @returns Array of calendar info objects
+             * 
+             * @example
+             * const calendars = await synapse.system.calendar.getCalendars();
+             * const work = calendars.find(c => c.title === 'Work');
+             */
+            getCalendars: async (): Promise<CalendarInfo[]> => {
+                return Bridge.send('system_calendar_getCalendars', {}, true);
+            },
+
+            /**
+             * Query calendar events within a date range.
+             * 
+             * @param options - Query parameters (date range, optional calendar filter)
+             * @returns Array of calendar events
+             * 
+             * @example
+             * const events = await synapse.system.calendar.getEvents({
+             *   startDate: '2026-04-06T00:00:00',
+             *   endDate: '2026-04-07T00:00:00'
+             * });
+             */
+            getEvents: async (options: CalendarQueryOptions): Promise<CalendarEvent[]> => {
+                return Bridge.send('system_calendar_getEvents', options, true);
+            },
+
+            /**
+             * Create a new calendar event.
+             * 
+             * @param event - Event parameters
+             * @returns Object with the created event's ID
+             * 
+             * @example
+             * const { eventId } = await synapse.system.calendar.createEvent({
+             *   title: 'Team Standup',
+             *   startDate: '2026-04-07T09:00:00',
+             *   endDate: '2026-04-07T09:30:00',
+             *   notes: 'Daily sync',
+             *   location: 'Zoom'
+             * });
+             */
+            createEvent: async (event: CalendarEventParams): Promise<{ eventId: string }> => {
+                return Bridge.send('system_calendar_createEvent', event, true);
+            },
+        },
     };
 
     // =========================================================================
