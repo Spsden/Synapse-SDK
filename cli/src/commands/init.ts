@@ -82,13 +82,14 @@ export async function initPlugin(name: string, targetDir?: string): Promise<stri
 // Triggers: ${triggerName}
 //
 // SDK Quick Reference:
-//   synapse.register()          — Handle an intent
-//   synapse.fetch()             — HTTP requests (proxied through host)
-//   synapse.ui.show()           — Display custom HTML UI
-//   synapse.ui.toast()          — Show a brief message
-//   synapse.auth.authenticate() — Trigger OAuth flow
-//   synapse.storage.get/set()   — Persistent key-value storage
-//   synapse.success() / .fail() — Return results
+//   synapse.register()              — Handle an intent
+//   synapse.fetch()                 — HTTP requests (proxied through host)
+//   synapse.ui.show()               — Display custom HTML UI
+//   synapse.ui.toast()              — Show a brief message
+//   synapse.auth.authenticate()     — Trigger OAuth flow
+//   synapse.storage.get/set()       — Persistent key-value storage
+//   synapse.mcp.callTool()          — Call a tool on a registered MCP server
+//   synapse.success() / .fail()     — Return results
 //
 // Full docs: type "synapse." and let autocomplete guide you!
 
@@ -283,6 +284,16 @@ await synapse.system.runShortcut('name', input);          // iOS/macOS
 await synapse.system.sendIntent({ action, extras });      // Android
 await synapse.system.runAppleScript('tell app ...');      // macOS
 await synapse.system.calendar.createEvent({ title, ... }); // iOS/macOS
+
+// MCP (Model Context Protocol — host-managed tool servers)
+// Declare servers in manifest.json under "mcpServers", then call tools here.
+// The host runs the MCP server; plugins never deal with transport.
+const result = await synapse.mcp.callTool('server-name', 'tool-name', { arg: value });
+if (result.success) {
+  console.log(result.data);   // typed as TResponse
+} else {
+  console.error(result.error, result.code);  // e.g. 'BRIDGE_ERROR'
+}
 
 // File uploads
 await synapse.upload({ fileRef, url, provider });

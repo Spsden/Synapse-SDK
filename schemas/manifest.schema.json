@@ -77,7 +77,7 @@
           "description": "Capabilities the plugin requires. The host will prompt the user to grant these.",
           "items": {
             "type": "string",
-            "enum": ["network", "ui", "storage", "config", "calendar", "applescript", "shortcuts", "intents"],
+            "enum": ["network", "ui", "storage", "config", "calendar", "applescript", "shortcuts", "intents", "mcp"],
             "description": "Permission type"
           },
           "uniqueItems": true
@@ -239,6 +239,38 @@
         "type": "string"
       },
       "maxItems": 10
+    },
+    "mcpServers": {
+      "type": "array",
+      "description": "MCP servers this plugin requires. Each server must be approved in the Synapse host before a plugin can call its tools. Requires the 'mcp' permission.",
+      "items": {
+        "type": "object",
+        "required": ["name", "tools"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique local name for this server, used as the first argument to synapse.mcp.callTool(name, ...)",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "examples": ["spotify", "notion", "github"]
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of what this MCP server does (shown to user when requesting approval)"
+          },
+          "tools": {
+            "type": "array",
+            "description": "Allowlist of tool names this plugin is permitted to call on this server. The host will block any tool not in this list.",
+            "items": {
+              "type": "string",
+              "description": "Exact tool name as exposed by the MCP server"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "uniqueItems": true
     }
   },
   "additionalProperties": false

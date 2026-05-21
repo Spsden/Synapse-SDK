@@ -38,6 +38,15 @@ export interface PluginManifest {
     inputSchema?: Record<string, unknown>;
     categories?: string[];
     keywords?: string[];
+
+    mcpServers?: Array<{
+        /** Unique local name used as first arg to synapse.mcp.callTool(name, ...) */
+        name: string;
+        /** Human-readable description shown in the host approval UI */
+        description?: string;
+        /** Allowlist of tool names the plugin is permitted to call */
+        tools: string[];
+    }>;
 }
 
 /**

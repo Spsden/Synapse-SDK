@@ -214,4 +214,27 @@ function validateManifest(manifest: PluginManifest, errors: string[], warnings: 
     if (!manifest.security?.allowedDomains || manifest.security.allowedDomains.length === 0) {
         warnings.push('No allowed domains specified - plugin cannot make network requests');
     }
+
+    // MCP Servers
+    if (manifest.mcpServers && manifest.mcpServers.length > 0) {
+        // Must declare the 'mcp' permission
+        if (!manifest.security?.permissions?.includes('mcp')) {
+            errors.push('manifest.mcpServers is declared but security.permissions does not include "mcp"');
+        }
+
+        const serverNames = new Set<string>();
+        manifest.mcpServers.forEach((server, index) => {
+            if (!server.name) {
+                errors.push(`manifest.mcpServers[${index}].name is required`);
+            } else {
+                if (serverNames.has(server.name)) {
+                    errors.push(`manifest.mcpServers: duplicate server name "${server.name}"`);
+                }
+                serverNames.add(server.name);
+            }
+            if (!server.tools || server.tools.length === 0) {
+                errors.push(`manifest.mcpServers[${index}].tools must list at least one tool name`);
+            }
+        });
+    }
 }
