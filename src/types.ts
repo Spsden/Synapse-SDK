@@ -324,3 +324,31 @@ export interface CalendarEventParams {
     /** Whether this is an all-day event */
     allDay?: boolean;
 }
+
+// =============================================================================
+// MCP Types
+// =============================================================================
+
+/**
+ * Options for executing an MCP tool call.
+ */
+export interface McpCallOptions {
+    /** Timeout in milliseconds (default: 10000) */
+    timeoutMs?: number;
+    /** Execution routing policy */
+    routingPolicy?: 'prefer-local' | 'local-only' | 'cloud-only';
+}
+
+/**
+ * Wrapped response structure returned by synapse.mcp.callTool().
+ */
+export interface McpCallResult<T = any> {
+    /** True if the tool executed successfully and returned data */
+    success: boolean;
+    /** Output payload returned from the tool (if successful) */
+    data?: T;
+    /** User-friendly error message if failed */
+    error?: string;
+    /** System error code (if failed) */
+    code?: string;
+}
