@@ -1,0 +1,14 @@
+{
+  "js/ts.implicitProjectConfig.checkJs": true,
+  "json.schemas": [
+    {
+      "fileMatch": ["manifest.json"],
+      "url": "../schemas/manifest.schema.json"
+    }
+  ],
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": true
+  }
+}
