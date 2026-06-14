@@ -4,8 +4,14 @@
   "title": "Synapse Plugin Manifest",
   "description": "Configuration file for a Synapse plugin (.synx package). Defines metadata, permissions, authentication, triggers, and settings.",
   "type": "object",
-  "required": ["id", "name", "version", "triggers"],
+  "required": ["id", "name", "version"],
   "properties": {
+    "manifestVersion": {
+      "type": "integer",
+      "enum": [1, 2],
+      "default": 1,
+      "description": "Manifest contract version. Omitted is treated as version 1."
+    },
     "$schema": {
       "type": "string",
       "description": "JSON Schema reference (for editor autocomplete)"
@@ -77,8 +83,8 @@
           "description": "Capabilities the plugin requires. The host will prompt the user to grant these.",
           "items": {
             "type": "string",
-            "enum": ["network", "ui", "storage", "config", "calendar", "applescript", "shortcuts", "intents", "mcp"],
-            "description": "Permission type"
+            "pattern": "^(network|ui|storage|config|calendar|applescript|shortcuts|intents|mcp|[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+|network:[a-z0-9.-]+)$",
+            "description": "Legacy permission name or a scoped capability such as calendar.read or network:api.example.com"
           },
           "uniqueItems": true
         },
@@ -129,6 +135,39 @@
       "then": {
         "required": ["provider"]
       }
+    },
+    "connections": {
+      "type": "array",
+      "description": "Named user connections that actions may request. Tokens are managed by the Synapse host and are never exposed to plugin JavaScript.",
+      "items": {
+        "type": "object",
+        "required": ["alias", "provider", "type"],
+        "properties": {
+          "alias": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["oauth2", "api_key", "mcp_oauth", "none"]
+          },
+          "scopes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "uniqueItems": true
+          },
+          "optional": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "uniqueItems": true
     },
     "config": {
       "type": "array",
@@ -192,6 +231,134 @@
       },
       "minItems": 1,
       "uniqueItems": true
+    },
+    "actions": {
+      "type": "array",
+      "description": "Manifest v2 action contracts with action-specific schemas and capability requirements.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "triggers"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "description": {
+            "type": "string"
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "inputSchema": {
+            "type": "object"
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": ["kind", "alias"],
+                  "properties": {
+                    "kind": { "const": "connection" },
+                    "alias": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_-]*$"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": ["kind", "alias", "serverId", "allow"],
+                  "properties": {
+                    "kind": { "const": "mcp" },
+                    "alias": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*$"
+                    },
+                    "serverId": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*$"
+                    },
+                    "allow": {
+                      "type": "object",
+                      "required": ["tools"],
+                      "properties": {
+                        "tools": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "minItems": 1,
+                          "uniqueItems": true
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "optional": {
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": ["kind", "capability"],
+                  "properties": {
+                    "kind": { "const": "host" },
+                    "capability": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$"
+                    },
+                    "optional": {
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": ["kind", "domains"],
+                  "properties": {
+                    "kind": { "const": "network" },
+                    "domains": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "minItems": 1,
+                      "uniqueItems": true
+                    },
+                    "optional": {
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "platforms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["ios", "android", "macos", "windows", "linux", "web"]
+            },
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
     },
     "inputSchema": {
       "type": "object",
@@ -273,5 +440,21 @@
       "uniqueItems": true
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "manifestVersion": { "const": 2 }
+        },
+        "required": ["manifestVersion"]
+      },
+      "then": {
+        "required": ["actions"]
+      },
+      "else": {
+        "required": ["triggers"]
+      }
+    }
+  ],
   "additionalProperties": false
 }

@@ -38,6 +38,7 @@ export async function initPlugin(name: string, targetDir?: string): Promise<stri
 
     const manifest = {
         $schema: './node_modules/@synapse/sdk/schemas/manifest.schema.json',
+        manifestVersion: 2,
         id: fullId,
         name: name,
         version: '1.0.0',
@@ -49,20 +50,19 @@ export async function initPlugin(name: string, targetDir?: string): Promise<stri
             permissions: ['network']
         },
 
-        auth: {
-            type: 'none'
-        },
-
+        connections: [],
         config: [],
 
-        triggers: [triggerName],
-
-        inputSchema: {
-            type: 'object',
-            properties: {
-                text: { type: 'string' }
+        actions: [{
+            id: triggerName,
+            triggers: [triggerName],
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    text: { type: 'string' }
+                }
             }
-        }
+        }]
     };
 
     fs.writeFileSync(
@@ -86,7 +86,8 @@ export async function initPlugin(name: string, targetDir?: string): Promise<stri
 //   synapse.fetch()                 — HTTP requests (proxied through host)
 //   synapse.ui.show()               — Display custom HTML UI
 //   synapse.ui.toast()              — Show a brief message
-//   synapse.auth.authenticate()     — Trigger OAuth flow
+//   synapse.connections.connect()   — Connect a manifest v2 account
+//   synapse.auth.authenticate()     — Legacy provider OAuth
 //   synapse.storage.get/set()       — Persistent key-value storage
 //   synapse.mcp.callTool()          — Call a tool on a registered MCP server
 //   synapse.success() / .fail()     — Return results

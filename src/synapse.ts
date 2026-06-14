@@ -203,7 +203,8 @@ export class Synapse {
             method: init?.method || 'GET',
             headers: init?.headers || {},
             body: typeof init?.body === 'object' ? JSON.stringify(init.body) : init?.body,
-            provider: init?.provider
+            provider: init?.provider,
+            connection: init?.connection
         };
 
         const responseData = await Bridge.send('fetch', request, true);
@@ -323,6 +324,26 @@ export class Synapse {
 
         // Access tokens are never exposed to plugins. Use synapse.fetch
         // with `provider` to get Authorization injected by the host.
+    };
+
+    /**
+     * Manifest v2 named user connections.
+     *
+     * Connections are resolved by the host from the plugin manifest. Tokens and
+     * API keys are never returned to plugin JavaScript.
+     */
+    connections = {
+        isConnected: async (alias: string): Promise<boolean> => {
+            return Bridge.send('connection_check', { alias }, true);
+        },
+
+        connect: async (alias: string): Promise<void> => {
+            return Bridge.send('connection_connect', { alias }, true);
+        },
+
+        disconnect: async (alias: string): Promise<void> => {
+            await Bridge.send('connection_disconnect', { alias });
+        }
     };
 
     // =========================================================================
