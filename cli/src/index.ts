@@ -43,10 +43,7 @@ program
                 console.log(chalk.gray(`  ID: ${result.manifest.id}`));
                 console.log(chalk.gray(`  Name: ${result.manifest.name}`));
                 console.log(chalk.gray(`  Version: ${result.manifest.version}`));
-                const triggers =
-                    result.manifest.triggers ??
-                    result.manifest.actions?.flatMap((action) => action.triggers) ??
-                    [];
+                const triggers = result.manifest.actions.flatMap((action) => action.triggers);
                 console.log(chalk.gray(`  Triggers: ${triggers.join(', ')}`));
             } else {
                 console.error(chalk.red(`✗ Plugin validation failed:`));
@@ -97,14 +94,11 @@ program
             console.log(`  ${chalk.gray('Author:')}      ${m.author || 'N/A'}`);
             console.log(`  ${chalk.gray('Description:')} ${m.description || 'N/A'}`);
             console.log();
-            const triggers = m.triggers ?? m.actions?.flatMap((action) => action.triggers) ?? [];
+            const triggers = m.actions.flatMap((action) => action.triggers);
             console.log(`  ${chalk.gray('Triggers:')}    ${triggers.join(', ')}`);
             console.log(`  ${chalk.gray('Domains:')}     ${m.security?.allowedDomains?.join(', ') || 'None'}`);
             console.log(`  ${chalk.gray('Permissions:')} ${m.security?.permissions?.join(', ') || 'None'}`);
 
-            if (m.auth) {
-                console.log(`  ${chalk.gray('Auth:')}        ${m.auth.provider} (${m.auth.scopes?.join(', ')})`);
-            }
             console.log();
         } catch (error: any) {
             console.error(chalk.red(`✗ Error: ${error.message}`));

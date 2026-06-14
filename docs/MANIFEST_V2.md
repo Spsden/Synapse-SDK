@@ -31,8 +31,9 @@ Plugins do not need MCP for every integration. Actions may use named OAuth or
 API-key connections, direct allowlisted network calls, and host capabilities
 such as calendar or shortcuts alongside MCP requirements.
 
-Manifest v1 remains supported. When `manifestVersion` is omitted, the host
-reads legacy `triggers`, `inputSchema`, `auth`, and `mcpServers`.
+Manifest v2 is the only supported plugin contract. `manifestVersion` and
+`actions` are required. Legacy top-level `triggers`, `inputSchema`, `auth`, and
+`mcpServers` fields are rejected by both validation and packaging.
 
 The canonical example is
 [`plugins/notion`](../plugins/notion), which uses an MCP OAuth connection and

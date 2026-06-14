@@ -2,8 +2,8 @@
  * Manifest schema for Synapse plugins
  */
 export interface PluginManifest {
-    /** Manifest contract version. Omitted means legacy manifest v1. */
-    manifestVersion?: 1 | 2;
+    /** Manifest contract version. Synapse accepts version 2 only. */
+    manifestVersion: 2;
     id: string;
     name: string;
     version: string;
@@ -20,13 +20,7 @@ export interface PluginManifest {
         contentHash?: string;
     };
 
-    auth?: {
-        type: 'oauth2' | 'api_key' | 'none';
-        provider?: string;
-        scopes?: string[];
-    };
-
-    /** Named user connections available to manifest v2 actions. */
+    /** Named user connections available to actions. */
     connections?: Array<{
         alias: string;
         provider: string;
@@ -45,9 +39,8 @@ export interface PluginManifest {
         options?: string[];
     }>;
 
-    triggers?: string[];
-    /** Action-specific contracts. Required for manifest v2. */
-    actions?: Array<{
+    /** Action-specific execution and capability contracts. */
+    actions: Array<{
         id: string;
         description?: string;
         triggers: string[];
@@ -80,20 +73,8 @@ export interface PluginManifest {
         >;
         platforms?: Array<'ios' | 'android' | 'macos' | 'windows' | 'linux' | 'web'>;
     }>;
-    inputSchema?: Record<string, unknown>;
     categories?: string[];
     keywords?: string[];
-
-    mcpServers?: Array<{
-        /** Unique local name used as first arg to synapse.mcp.callTool(name, ...) */
-        name: string;
-        /** Stable Marketplace registry ID. Defaults to name for legacy manifests. */
-        serverId?: string;
-        /** Human-readable description shown in the host approval UI */
-        description?: string;
-        /** Allowlist of tool names the plugin is permitted to call */
-        tools: string[];
-    }>;
 }
 
 /**

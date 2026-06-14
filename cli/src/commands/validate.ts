@@ -152,7 +152,7 @@ async function validateSynxFile(filePath: string): Promise<ValidationResult> {
 /**
  * Validate manifest fields
  */
-function validateManifest(manifest: PluginManifest, errors: string[], warnings: string[]): void {
+export function validateManifest(manifest: PluginManifest, errors: string[], warnings: string[]): void {
     // Required fields
     if (!manifest.id) {
         errors.push('manifest.id is required');
@@ -170,12 +170,18 @@ function validateManifest(manifest: PluginManifest, errors: string[], warnings: 
         errors.push('manifest.version must be in semver format (x.y.z)');
     }
 
-    const manifestVersion = manifest.manifestVersion ?? 1;
-    if (manifestVersion === 1 && (!manifest.triggers || manifest.triggers.length === 0)) {
-        errors.push('manifest.triggers must have at least one trigger');
+    if (manifest.manifestVersion !== 2) {
+        errors.push('manifest.manifestVersion must be 2');
     }
-    if (manifestVersion === 2 && (!manifest.actions || manifest.actions.length === 0)) {
-        errors.push('manifest.actions must have at least one action when manifestVersion is 2');
+    if (!manifest.actions || manifest.actions.length === 0) {
+        errors.push('manifest.actions must have at least one action');
+    }
+
+    const rawManifest = manifest as unknown as Record<string, unknown>;
+    for (const legacyField of ['triggers', 'inputSchema', 'auth', 'mcpServers']) {
+        if (Object.prototype.hasOwnProperty.call(rawManifest, legacyField)) {
+            errors.push(`manifest.${legacyField} is a manifest v1 field; declare it in manifest v2 action contracts`);
+        }
     }
 
     // Optional but recommended
@@ -186,17 +192,7 @@ function validateManifest(manifest: PluginManifest, errors: string[], warnings: 
         warnings.push('manifest.author is recommended');
     }
 
-    // Auth
-    if (manifest.auth) {
-        if (!['oauth2', 'api_key', 'none'].includes(manifest.auth.type)) {
-            errors.push('manifest.auth.type must be one of: oauth2, api_key, none');
-        }
-        if (manifest.auth.type === 'oauth2' && !manifest.auth.provider) {
-            errors.push('manifest.auth.provider is required when auth.type is oauth2');
-        }
-    }
-
-    // Manifest v2 named connections
+    // Named connections
     const connectionAliases = new Set<string>();
     if (manifest.connections) {
         manifest.connections.forEach((connection, index) => {
@@ -294,29 +290,4 @@ function validateManifest(manifest: PluginManifest, errors: string[], warnings: 
         warnings.push('No allowed domains specified - plugin cannot make network requests');
     }
 
-    // MCP Servers
-    if (manifest.mcpServers && manifest.mcpServers.length > 0) {
-        // Must declare the 'mcp' permission
-        if (!manifest.security?.permissions?.includes('mcp')) {
-            errors.push('manifest.mcpServers is declared but security.permissions does not include "mcp"');
-        }
-
-        const serverNames = new Set<string>();
-        manifest.mcpServers.forEach((server, index) => {
-            if (!server.name) {
-                errors.push(`manifest.mcpServers[${index}].name is required`);
-            } else {
-                if (serverNames.has(server.name)) {
-                    errors.push(`manifest.mcpServers: duplicate server name "${server.name}"`);
-                }
-                serverNames.add(server.name);
-            }
-            if (!server.tools || server.tools.length === 0) {
-                errors.push(`manifest.mcpServers[${index}].tools must list at least one tool name`);
-            }
-            if (server.serverId && !/^[a-z0-9][a-z0-9-]{1,62}$/.test(server.serverId)) {
-                errors.push(`manifest.mcpServers[${index}].serverId must be lowercase kebab-case`);
-            }
-        });
-    }
 }

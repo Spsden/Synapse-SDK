@@ -86,8 +86,7 @@ export async function initPlugin(name: string, targetDir?: string): Promise<stri
 //   synapse.fetch()                 — HTTP requests (proxied through host)
 //   synapse.ui.show()               — Display custom HTML UI
 //   synapse.ui.toast()              — Show a brief message
-//   synapse.connections.connect()   — Connect a manifest v2 account
-//   synapse.auth.authenticate()     — Legacy provider OAuth
+//   synapse.connections.connect()   — Connect a declared account
 //   synapse.storage.get/set()       — Persistent key-value storage
 //   synapse.mcp.callTool()          — Call a tool on a registered MCP server
 //   synapse.success() / .fail()     — Return results
@@ -118,7 +117,7 @@ synapse.register('${triggerName}', async (ctx) => {
   //   method: 'POST',
   //   headers: { 'Content-Type': 'application/json' },
   //   body: JSON.stringify({ text }),
-  //   provider: 'my_provider'  // Host injects OAuth Authorization header
+  //   connection: 'my_connection'  // Alias declared in manifest.json
   // });
   //
   // if (!res.ok) {
@@ -225,7 +224,7 @@ IntelliSense works automatically — no \`npm install\` required.
 
 \`\`\`
 ${name}/
-├── manifest.json          ← Plugin metadata, permissions, triggers
+├── manifest.json          ← Plugin metadata and action contracts
 ├── plugin.js              ← Plugin code (your logic goes here)
 ├── jsconfig.json          ← Editor config for IntelliSense
 ├── synapse-global.d.ts    ← SDK type definitions (do not edit)
@@ -256,7 +255,7 @@ synapse.fail({ reason: '...', message: '...' });
 synapse.log('debug message');
 
 // Network (all requests proxied through host)
-const res = await synapse.fetch(url, { method, headers, body, provider });
+const res = await synapse.fetch(url, { method, headers, body, connection: 'alias' });
 await res.json();
 await res.text();
 res.ok / res.status / res.statusText
@@ -266,10 +265,10 @@ const result = await synapse.ui.show(html, { title, width, height });
 await synapse.ui.toast('message');
 const yes = await synapse.ui.confirm('question?');
 
-// Authentication (host-managed OAuth)
-await synapse.auth.authenticate('provider');
-await synapse.auth.isAuthenticated('provider');
-await synapse.auth.logout('provider');
+// Connections (host-managed OAuth, API keys, and MCP OAuth)
+await synapse.connections.connect('alias');
+await synapse.connections.isConnected('alias');
+await synapse.connections.disconnect('alias');
 
 // Storage (persistent, per-plugin)
 await synapse.storage.set('key', value);
@@ -287,7 +286,7 @@ await synapse.system.runAppleScript('tell app ...');      // macOS
 await synapse.system.calendar.createEvent({ title, ... }); // iOS/macOS
 
 // MCP (Model Context Protocol — host-managed tool servers)
-// Declare servers in manifest.json under "mcpServers", then call tools here.
+// Declare MCP requirements on an action, then call allowlisted tools here.
 // The host runs the MCP server; plugins never deal with transport.
 const result = await synapse.mcp.callTool('server-name', 'tool-name', { arg: value });
 if (result.success) {
@@ -297,7 +296,7 @@ if (result.success) {
 }
 
 // File uploads
-await synapse.upload({ fileRef, url, provider });
+await synapse.upload({ fileRef, url });
 \`\`\`
 
 For full documentation, type \`synapse.\` in your editor and explore with autocomplete!
