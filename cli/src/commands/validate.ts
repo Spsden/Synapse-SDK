@@ -314,6 +314,9 @@ function validateManifest(manifest: PluginManifest, errors: string[], warnings: 
             if (!server.tools || server.tools.length === 0) {
                 errors.push(`manifest.mcpServers[${index}].tools must list at least one tool name`);
             }
+            if (server.serverId && !/^[a-z0-9][a-z0-9-]{1,62}$/.test(server.serverId)) {
+                errors.push(`manifest.mcpServers[${index}].serverId must be lowercase kebab-case`);
+            }
         });
     }
 }

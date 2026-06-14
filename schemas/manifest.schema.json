@@ -420,6 +420,12 @@
             "pattern": "^[a-z][a-z0-9-]*$",
             "examples": ["spotify", "notion", "github"]
           },
+          "serverId": {
+            "type": "string",
+            "description": "Stable Synapse Marketplace registry ID. Defaults to name when omitted.",
+            "pattern": "^[a-z0-9][a-z0-9-]{1,62}$",
+            "examples": ["spotify", "notion", "github"]
+          },
           "description": {
             "type": "string",
             "description": "Human-readable description of what this MCP server does (shown to user when requesting approval)"

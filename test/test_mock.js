@@ -14,13 +14,19 @@ const sandbox = {
         console.log(`[Host] Received message: ${msg.type}`, msg.payload);
 
         // Simulate Host Logic
-        if (msg.type === 'network_request') {
+        if (msg.type === 'fetch') {
             // Simulate async network delay
             setTimeout(() => {
                 console.log('[Host] Simulating Network Response...');
                 // Call back into JS
                 // synapse._bridge.resolve(id, response)
-                const response = { status: 200, data: { success: true } };
+                const response = {
+                    status: 200,
+                    ok: true,
+                    statusText: 'OK',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ success: true })
+                };
                 const code = `synapse._bridge.resolve('${msg.id}', ${JSON.stringify(response)})`;
                 vm.runInContext(code, context);
             }, 500);

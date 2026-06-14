@@ -87,6 +87,8 @@ export interface PluginManifest {
     mcpServers?: Array<{
         /** Unique local name used as first arg to synapse.mcp.callTool(name, ...) */
         name: string;
+        /** Stable Marketplace registry ID. Defaults to name for legacy manifests. */
+        serverId?: string;
         /** Human-readable description shown in the host approval UI */
         description?: string;
         /** Allowlist of tool names the plugin is permitted to call */
