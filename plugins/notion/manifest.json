@@ -3,7 +3,7 @@
   "manifestVersion": 2,
   "id": "com.synapse.notion",
   "name": "Notion",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Capture notes and pages in Notion through its MCP server.",
   "author": "Synapse",
   "minSynapseVersion": "1.0.0",
@@ -70,7 +70,7 @@
           "alias": "notion",
           "serverId": "notion",
           "allow": {
-            "tools": ["notion-get-self", "notion-create-pages"]
+            "tools": ["notion-create-pages"]
           }
         }
       ],

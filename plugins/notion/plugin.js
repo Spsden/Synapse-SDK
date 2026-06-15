@@ -9,19 +9,6 @@ async function addToNotion(ctx) {
   try {
     await ensureNotionConnection();
 
-    const connectivity = await synapse.mcp.callTool(
-      'notion',
-      'notion-get-self',
-      {},
-      { timeoutMs: 15000 },
-    );
-    if (!connectivity.success) {
-      return synapse.fail({
-        reason: 'mcp_connectivity',
-        message: connectivity.error || 'Unable to connect to Notion MCP.',
-      });
-    }
-
     const title =
       normalizeString(ctx.llm?.entities?.title) ||
       normalizeString(ctx.input?.title) ||
