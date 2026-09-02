@@ -14,7 +14,9 @@ import {
     CalendarEvent,
     CalendarInfo,
     CalendarQueryOptions,
-    CalendarEventParams
+    CalendarEventParams,
+    McpCallOptions,
+    McpCallResult
 } from './types';
 
 // =============================================================================
@@ -201,7 +203,8 @@ export class Synapse {
             method: init?.method || 'GET',
             headers: init?.headers || {},
             body: typeof init?.body === 'object' ? JSON.stringify(init.body) : init?.body,
-            provider: init?.provider
+            provider: init?.provider,
+            connection: init?.connection
         };
 
         const responseData = await Bridge.send('fetch', request, true);
@@ -323,6 +326,26 @@ export class Synapse {
         // with `provider` to get Authorization injected by the host.
     };
 
+    /**
+     * Manifest v2 named user connections.
+     *
+     * Connections are resolved by the host from the plugin manifest. Tokens and
+     * API keys are never returned to plugin JavaScript.
+     */
+    connections = {
+        isConnected: async (alias: string): Promise<boolean> => {
+            return Bridge.send('connection_check', { alias }, true);
+        },
+
+        connect: async (alias: string): Promise<void> => {
+            return Bridge.send('connection_connect', { alias }, true);
+        },
+
+        disconnect: async (alias: string): Promise<void> => {
+            await Bridge.send('connection_disconnect', { alias });
+        }
+    };
+
     // =========================================================================
     // Storage Namespace
     // =========================================================================
@@ -408,6 +431,94 @@ export class Synapse {
          */
         set: async (key: string, value: string): Promise<void> => {
             await Bridge.send('config_set', { key, value });
+        }
+    };
+
+    // =========================================================================
+    // MCP Namespace
+    // =========================================================================
+
+    /**
+     * Model Context Protocol (MCP) utilities.
+     * Allows plugins to call tools on standard MCP servers managed by the host.
+     */
+    mcp = {
+        /**
+         * Call a tool on a registered MCP server.
+         * 
+         * This function returns a wrapped response object: `{ success: boolean, data?: TResponse, error?: string, code?: string }`.
+         * Internally, it uses try-catch. If a catastrophic execution, bridge, or network error occurs, it catches the error
+         * and returns it as a wrapped success: false result so plugins can handle failures gracefully without crashing.
+         * 
+         * @param serverName - Name of the MCP server as declared in plugin.json
+         * @param toolName - Name of the tool to execute
+         * @param args - Arguments to pass to the tool (JSON-serializable)
+         * @param options - Execution options (timeout, routing policy)
+         * @returns Promise resolving to a wrapped McpCallResult containing the typed data
+         * 
+         * @example
+         * interface SpotifyArgs { deviceId?: string; }
+         * interface SpotifyTrack { name: string; artist: string; }
+         * 
+         * const result = await synapse.mcp.callTool<SpotifyTrack, SpotifyArgs>(
+         *   'spotify',
+         *   'get-current-song',
+         *   { deviceId: '123' },
+         *   { timeoutMs: 5000 }
+         * );
+         * if (result.success) {
+         *   console.log(`Now playing: ${result.data.name}`);
+         * } else {
+         *   console.error(`Error: ${result.error}`);
+         * }
+         */
+        callTool: async <
+            TResponse = any,
+            TArgs extends Record<string, any> = Record<string, any>
+        >(
+            serverName: string,
+            toolName: string,
+            args?: TArgs,
+            options?: McpCallOptions
+        ): Promise<McpCallResult<TResponse>> => {
+            try {
+                const response = await Bridge.send(
+                    'mcp_callTool',
+                    {
+                        serverName,
+                        toolName,
+                        arguments: args || {},
+                        options: {
+                            timeoutMs: options?.timeoutMs ?? 10000,
+                            routingPolicy: options?.routingPolicy ?? 'prefer-local'
+                        }
+                    },
+                    true
+                );
+
+                if (response && (response.success === false || response.isError === true)) {
+                    return {
+                        success: false,
+                        error: response.error || response.message || 'Unknown MCP tool error',
+                        code: response.code || 'UNKNOWN_ERROR'
+                    };
+                }
+
+                // Standardize unwrapping: if the host returns an object with a success/data structure
+                const data = response && typeof response === 'object' && 'data' in response ? response.data : response;
+
+                return {
+                    success: true,
+                    data: data as TResponse
+                };
+            } catch (e: any) {
+                // Catch bridge/catastrophic errors and wrap them into the result structure
+                return {
+                    success: false,
+                    error: e.message || String(e),
+                    code: 'BRIDGE_ERROR'
+                };
+            }
         }
     };
 

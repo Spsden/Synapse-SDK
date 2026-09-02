@@ -104,6 +104,8 @@ interface SynapseRequestInit {
     body?: string | object;
     /** OAuth provider — the host automatically injects the Authorization header */
     provider?: string;
+    /** Manifest v2 connection alias — the host resolves and injects credentials */
+    connection?: string;
 }
 
 /**
@@ -597,6 +599,19 @@ interface SynapseSDK {
          * @param provider - Provider ID
          */
         logout(provider: string): Promise<void>;
+    };
+
+    /**
+     * Manifest v2 named user connections. Credentials remain host-managed and
+     * are never exposed to plugin JavaScript.
+     */
+    connections: {
+        /** Check whether the named connection is ready for this plugin. */
+        isConnected(alias: string): Promise<boolean>;
+        /** Ask the host to establish or grant the named connection. */
+        connect(alias: string): Promise<void>;
+        /** Revoke this plugin's grant to the named connection. */
+        disconnect(alias: string): Promise<void>;
     };
 
     // =========================================================================

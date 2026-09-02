@@ -2,6 +2,8 @@
  * Manifest schema for Synapse plugins
  */
 export interface PluginManifest {
+    /** Manifest contract version. Synapse accepts version 2 only. */
+    manifestVersion: 2;
     id: string;
     name: string;
     version: string;
@@ -18,11 +20,14 @@ export interface PluginManifest {
         contentHash?: string;
     };
 
-    auth?: {
-        type: 'oauth2' | 'api_key' | 'none';
-        provider?: string;
+    /** Named user connections available to actions. */
+    connections?: Array<{
+        alias: string;
+        provider: string;
+        type: 'oauth2' | 'api_key' | 'mcp_oauth' | 'none';
         scopes?: string[];
-    };
+        optional?: boolean;
+    }>;
 
     config?: Array<{
         key: string;
@@ -34,8 +39,40 @@ export interface PluginManifest {
         options?: string[];
     }>;
 
-    triggers: string[];
-    inputSchema?: Record<string, unknown>;
+    /** Action-specific execution and capability contracts. */
+    actions: Array<{
+        id: string;
+        description?: string;
+        triggers: string[];
+        inputSchema?: Record<string, unknown>;
+        outputSchema?: Record<string, unknown>;
+        requirements?: Array<
+            | {
+                kind: 'connection';
+                alias: string;
+            }
+            | {
+                kind: 'mcp';
+                alias: string;
+                serverId: string;
+                allow: {
+                    tools: string[];
+                };
+                optional?: boolean;
+            }
+            | {
+                kind: 'host';
+                capability: string;
+                optional?: boolean;
+            }
+            | {
+                kind: 'network';
+                domains: string[];
+                optional?: boolean;
+            }
+        >;
+        platforms?: Array<'ios' | 'android' | 'macos' | 'windows' | 'linux' | 'web'>;
+    }>;
     categories?: string[];
     keywords?: string[];
 }

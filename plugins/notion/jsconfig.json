@@ -5,11 +5,6 @@
     "moduleResolution": "node",
     "types": []
   },
-  "include": [
-    "*.js",
-    "synapse-global.d.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["plugin.js", "../../types/synapse-global.d.ts"],
+  "exclude": ["node_modules"]
 }

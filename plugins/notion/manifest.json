@@ -1,0 +1,82 @@
+{
+  "$schema": "../../schemas/manifest.schema.json",
+  "manifestVersion": 2,
+  "id": "com.synapse.notion",
+  "name": "Notion",
+  "version": "1.0.3",
+  "description": "Capture notes and pages in Notion through its MCP server.",
+  "author": "Synapse",
+  "minSynapseVersion": "1.0.0",
+  "security": {
+    "allowedDomains": [],
+    "permissions": ["mcp", "config"]
+  },
+  "connections": [
+    {
+      "alias": "notion",
+      "provider": "notion",
+      "type": "mcp_oauth",
+      "scopes": []
+    }
+  ],
+  "config": [
+    {
+      "key": "notion_parent_id",
+      "label": "Notion Parent ID",
+      "type": "text",
+      "description": "Optional page, database, or data source ID used as the parent."
+    },
+    {
+      "key": "notion_parent_type",
+      "label": "Parent Type",
+      "type": "select",
+      "default": "auto",
+      "options": ["auto", "page", "database", "data_source"]
+    }
+  ],
+  "actions": [
+    {
+      "id": "add_to_notion",
+      "description": "Create a Notion page from shared text.",
+      "triggers": ["add_to_notion", "save_to_notion"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title for the new Notion page."
+          },
+          "content": {
+            "type": "string",
+            "description": "Markdown-compatible page content."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "tool": { "type": "string" },
+          "title": { "type": "string" },
+          "result": {}
+        }
+      },
+      "requirements": [
+        {
+          "kind": "connection",
+          "alias": "notion"
+        },
+        {
+          "kind": "mcp",
+          "alias": "notion",
+          "serverId": "notion",
+          "allow": {
+            "tools": ["notion-create-pages"]
+          }
+        }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    }
+  ],
+  "categories": ["productivity", "notes"],
+  "keywords": ["notion", "notes", "mcp"]
+}

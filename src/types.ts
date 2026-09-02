@@ -79,6 +79,8 @@ export interface SynapseRequestInit {
     body?: string | object;
     /** OAuth provider to use for Authorization header (host-injected) */
     provider?: string;
+    /** Manifest v2 connection alias to use for host-injected authorization. */
+    connection?: string;
 }
 
 /**
@@ -215,6 +217,38 @@ export interface AuthConfig {
     scopes?: string[];
 }
 
+export type ConnectionType = 'oauth2' | 'api_key' | 'mcp_oauth' | 'none';
+
+export interface ConnectionRequirement {
+    alias: string;
+    provider: string;
+    type: ConnectionType;
+    scopes?: string[];
+    optional?: boolean;
+}
+
+export type PluginCapabilityRequirement =
+    | { kind: 'connection'; alias: string }
+    | {
+        kind: 'mcp';
+        alias: string;
+        serverId: string;
+        allow: { tools: string[] };
+        optional?: boolean;
+    }
+    | { kind: 'host'; capability: string; optional?: boolean }
+    | { kind: 'network'; domains: string[]; optional?: boolean };
+
+export interface PluginAction {
+    id: string;
+    description?: string;
+    triggers: string[];
+    inputSchema?: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
+    requirements?: PluginCapabilityRequirement[];
+    platforms?: SynapsePlatform[];
+}
+
 // =============================================================================
 // System Types
 // =============================================================================
@@ -323,4 +357,32 @@ export interface CalendarEventParams {
     calendarId?: string;
     /** Whether this is an all-day event */
     allDay?: boolean;
+}
+
+// =============================================================================
+// MCP Types
+// =============================================================================
+
+/**
+ * Options for executing an MCP tool call.
+ */
+export interface McpCallOptions {
+    /** Timeout in milliseconds (default: 10000) */
+    timeoutMs?: number;
+    /** Execution routing policy */
+    routingPolicy?: 'prefer-local' | 'local-only' | 'cloud-only';
+}
+
+/**
+ * Wrapped response structure returned by synapse.mcp.callTool().
+ */
+export interface McpCallResult<T = any> {
+    /** True if the tool executed successfully and returned data */
+    success: boolean;
+    /** Output payload returned from the tool (if successful) */
+    data?: T;
+    /** User-friendly error message if failed */
+    error?: string;
+    /** System error code (if failed) */
+    code?: string;
 }

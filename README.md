@@ -296,6 +296,10 @@ Output: `dist/synapse.global.js` — copy this to your Flutter assets.
 
 The Synapse CLI tool helps developers create, package, and validate plugins for the Synapse ecosystem.
 
+Manifest v2 actions, named connections, and MCP requirements are documented in
+[`docs/MANIFEST_V2.md`](docs/MANIFEST_V2.md). Canonical plugin packages live
+under [`plugins/`](plugins/).
+
 ## Installation
 
 ```bash

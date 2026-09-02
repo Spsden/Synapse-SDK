@@ -3,6 +3,8 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import archiver from 'archiver';
 import chalk from 'chalk';
+import { validateManifest } from './validate';
+import { PluginManifest } from '../types';
 
 interface PackageOptions {
     output?: string;
@@ -31,7 +33,13 @@ export async function packagePlugin(directory: string, options: PackageOptions):
 
     // Read and parse manifest
     const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
-    const manifest = JSON.parse(manifestContent);
+    const manifest = JSON.parse(manifestContent) as PluginManifest;
+
+    const validationErrors: string[] = [];
+    validateManifest(manifest, validationErrors, []);
+    if (validationErrors.length > 0) {
+        throw new Error(`Invalid manifest: ${validationErrors.join('; ')}`);
+    }
 
     // Read plugin script
     const pluginContent = fs.readFileSync(pluginPath, 'utf-8');

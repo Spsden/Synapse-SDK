@@ -2,10 +2,15 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://synapse.dev/schemas/manifest.schema.json",
   "title": "Synapse Plugin Manifest",
-  "description": "Configuration file for a Synapse plugin (.synx package). Defines metadata, permissions, authentication, triggers, and settings.",
+  "description": "Manifest v2 configuration for a Synapse plugin (.synx package).",
   "type": "object",
-  "required": ["id", "name", "version", "triggers"],
+  "required": ["manifestVersion", "id", "name", "version", "actions"],
   "properties": {
+    "manifestVersion": {
+      "type": "integer",
+      "const": 2,
+      "description": "Manifest contract version. Synapse accepts version 2 only."
+    },
     "$schema": {
       "type": "string",
       "description": "JSON Schema reference (for editor autocomplete)"
@@ -77,8 +82,8 @@
           "description": "Capabilities the plugin requires. The host will prompt the user to grant these.",
           "items": {
             "type": "string",
-            "enum": ["network", "ui", "storage", "config", "calendar", "applescript", "shortcuts", "intents"],
-            "description": "Permission type"
+            "pattern": "^(network|ui|storage|config|calendar|applescript|shortcuts|intents|mcp|[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+|network:[a-z0-9.-]+)$",
+            "description": "Legacy permission name or a scoped capability such as calendar.read or network:api.example.com"
           },
           "uniqueItems": true
         },
@@ -98,37 +103,38 @@
       },
       "additionalProperties": false
     },
-    "auth": {
-      "type": "object",
-      "description": "Authentication configuration. OAuth flows are handled by the host — the plugin never sees raw tokens.",
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": ["oauth2", "api_key", "none"],
-          "description": "Authentication method: 'oauth2' for OAuth providers, 'api_key' for user-provided keys, 'none' for no auth",
-          "default": "none"
-        },
-        "provider": {
-          "type": "string",
-          "description": "OAuth provider identifier (e.g., 'notion', 'google', 'jira'). Used with synapse.fetch({ provider: '...' }) to auto-inject Authorization headers.",
-          "examples": ["notion", "google", "jira", "github", "slack"]
-        },
-        "scopes": {
-          "type": "array",
-          "description": "Required OAuth scopes",
-          "items": {
-            "type": "string"
+    "connections": {
+      "type": "array",
+      "description": "Named user connections that actions may request. Tokens are managed by the Synapse host and are never exposed to plugin JavaScript.",
+      "items": {
+        "type": "object",
+        "required": ["alias", "provider", "type"],
+        "properties": {
+          "alias": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
           },
-          "examples": [["read:jira-work", "write:jira-work"]]
-        }
+          "provider": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["oauth2", "api_key", "mcp_oauth", "none"]
+          },
+          "scopes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "uniqueItems": true
+          },
+          "optional": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false
       },
-      "additionalProperties": false,
-      "if": {
-        "properties": { "type": { "const": "oauth2" } }
-      },
-      "then": {
-        "required": ["provider"]
-      }
+      "uniqueItems": true
     },
     "config": {
       "type": "array",
@@ -181,45 +187,132 @@
         }
       }
     },
-    "triggers": {
+    "actions": {
       "type": "array",
-      "description": "Intent names this plugin handles. Each must have a matching synapse.register() call in plugin.js.",
-      "items": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9_]*$",
-        "description": "Intent name (lowercase with underscores)",
-        "examples": ["add_to_notion", "create_ticket", "search_docs"]
-      },
+      "description": "Manifest v2 action contracts with action-specific schemas and capability requirements.",
       "minItems": 1,
-      "uniqueItems": true
-    },
-    "inputSchema": {
-      "type": "object",
-      "description": "JSON Schema describing the expected input parameters for this plugin. Used by the host for validation.",
-      "properties": {
-        "type": {
-          "type": "string",
-          "const": "object"
-        },
+      "items": {
+        "type": "object",
+        "required": ["id", "triggers"],
         "properties": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": ["string", "number", "boolean", "array", "object"]
-              },
-              "description": {
-                "type": "string"
-              }
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "description": {
+            "type": "string"
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "inputSchema": {
+            "type": "object"
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "requirements": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": ["kind", "alias"],
+                  "properties": {
+                    "kind": { "const": "connection" },
+                    "alias": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_-]*$"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": ["kind", "alias", "serverId", "allow"],
+                  "properties": {
+                    "kind": { "const": "mcp" },
+                    "alias": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*$"
+                    },
+                    "serverId": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*$"
+                    },
+                    "allow": {
+                      "type": "object",
+                      "required": ["tools"],
+                      "properties": {
+                        "tools": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "minItems": 1,
+                          "uniqueItems": true
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "optional": {
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": ["kind", "capability"],
+                  "properties": {
+                    "kind": { "const": "host" },
+                    "capability": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$"
+                    },
+                    "optional": {
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": ["kind", "domains"],
+                  "properties": {
+                    "kind": { "const": "network" },
+                    "domains": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "minItems": 1,
+                      "uniqueItems": true
+                    },
+                    "optional": {
+                      "type": "boolean",
+                      "default": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
             }
+          },
+          "platforms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["ios", "android", "macos", "windows", "linux", "web"]
+            },
+            "uniqueItems": true
           }
         },
-        "required": {
-          "type": "array",
-          "items": { "type": "string" }
-        }
+        "additionalProperties": false
       }
     },
     "categories": {

@@ -152,7 +152,7 @@ async function validateSynxFile(filePath: string): Promise<ValidationResult> {
 /**
  * Validate manifest fields
  */
-function validateManifest(manifest: PluginManifest, errors: string[], warnings: string[]): void {
+export function validateManifest(manifest: PluginManifest, errors: string[], warnings: string[]): void {
     // Required fields
     if (!manifest.id) {
         errors.push('manifest.id is required');
@@ -170,8 +170,18 @@ function validateManifest(manifest: PluginManifest, errors: string[], warnings: 
         errors.push('manifest.version must be in semver format (x.y.z)');
     }
 
-    if (!manifest.triggers || manifest.triggers.length === 0) {
-        errors.push('manifest.triggers must have at least one trigger');
+    if (manifest.manifestVersion !== 2) {
+        errors.push('manifest.manifestVersion must be 2');
+    }
+    if (!manifest.actions || manifest.actions.length === 0) {
+        errors.push('manifest.actions must have at least one action');
+    }
+
+    const rawManifest = manifest as unknown as Record<string, unknown>;
+    for (const legacyField of ['triggers', 'inputSchema', 'auth', 'mcpServers']) {
+        if (Object.prototype.hasOwnProperty.call(rawManifest, legacyField)) {
+            errors.push(`manifest.${legacyField} is a manifest v1 field; declare it in manifest v2 action contracts`);
+        }
     }
 
     // Optional but recommended
@@ -182,13 +192,78 @@ function validateManifest(manifest: PluginManifest, errors: string[], warnings: 
         warnings.push('manifest.author is recommended');
     }
 
-    // Auth
-    if (manifest.auth) {
-        if (!['oauth2', 'api_key', 'none'].includes(manifest.auth.type)) {
-            errors.push('manifest.auth.type must be one of: oauth2, api_key, none');
-        }
-        if (manifest.auth.type === 'oauth2' && !manifest.auth.provider) {
-            errors.push('manifest.auth.provider is required when auth.type is oauth2');
+    // Named connections
+    const connectionAliases = new Set<string>();
+    if (manifest.connections) {
+        manifest.connections.forEach((connection, index) => {
+            if (!connection.alias) {
+                errors.push(`manifest.connections[${index}].alias is required`);
+            } else if (connectionAliases.has(connection.alias)) {
+                errors.push(`manifest.connections: duplicate alias "${connection.alias}"`);
+            } else {
+                connectionAliases.add(connection.alias);
+            }
+            if (!connection.provider) {
+                errors.push(`manifest.connections[${index}].provider is required`);
+            }
+            if (!['oauth2', 'api_key', 'mcp_oauth', 'none'].includes(connection.type)) {
+                errors.push(
+                    `manifest.connections[${index}].type must be one of: oauth2, api_key, mcp_oauth, none`,
+                );
+            }
+        });
+    }
+
+    if (manifest.actions) {
+        const actionIds = new Set<string>();
+        const actionTriggers = new Set<string>();
+        let hasMcpRequirement = false;
+
+        manifest.actions.forEach((action, actionIndex) => {
+            if (!action.id) {
+                errors.push(`manifest.actions[${actionIndex}].id is required`);
+            } else if (actionIds.has(action.id)) {
+                errors.push(`manifest.actions: duplicate action id "${action.id}"`);
+            } else {
+                actionIds.add(action.id);
+            }
+
+            if (!action.triggers || action.triggers.length === 0) {
+                errors.push(`manifest.actions[${actionIndex}].triggers must list at least one trigger`);
+            } else {
+                action.triggers.forEach((trigger) => {
+                    if (actionTriggers.has(trigger)) {
+                        errors.push(`manifest.actions: trigger "${trigger}" is assigned more than once`);
+                    }
+                    actionTriggers.add(trigger);
+                });
+            }
+
+            action.requirements?.forEach((requirement, requirementIndex) => {
+                const path = `manifest.actions[${actionIndex}].requirements[${requirementIndex}]`;
+                if (requirement.kind === 'connection') {
+                    if (!connectionAliases.has(requirement.alias)) {
+                        errors.push(`${path} references unknown connection alias "${requirement.alias}"`);
+                    }
+                } else if (requirement.kind === 'mcp') {
+                    hasMcpRequirement = true;
+                    if (!requirement.allow?.tools?.length) {
+                        errors.push(`${path}.allow.tools must list at least one tool name`);
+                    }
+                } else if (requirement.kind === 'host') {
+                    if (!requirement.capability) {
+                        errors.push(`${path}.capability is required`);
+                    }
+                } else if (requirement.kind === 'network') {
+                    if (!requirement.domains?.length) {
+                        errors.push(`${path}.domains must list at least one domain`);
+                    }
+                }
+            });
+        });
+
+        if (hasMcpRequirement && !manifest.security?.permissions?.includes('mcp')) {
+            errors.push('manifest.actions declares an MCP requirement but security.permissions does not include "mcp"');
         }
     }
 
@@ -214,4 +289,5 @@ function validateManifest(manifest: PluginManifest, errors: string[], warnings: 
     if (!manifest.security?.allowedDomains || manifest.security.allowedDomains.length === 0) {
         warnings.push('No allowed domains specified - plugin cannot make network requests');
     }
+
 }
