@@ -19,6 +19,12 @@ typedef SynapseConfirmCallback = Future<bool> Function(String message, String? c
 /// Callback signature for authentication requests.
 typedef SynapseAuthCallback = Future<bool> Function(String provider);
 
+/// Callback signature for plugin questions (synapse.prompt()).
+/// [spec] contains `message` and `fields` (name/type/label/options).
+/// Returns a map of field name → answer, or null if the user cancelled.
+typedef SynapsePromptCallback = Future<Map<String, String>?> Function(
+    Map<String, dynamic> spec);
+
 /// The SynapseHost manages the JavaScript runtime and bridges communication
 /// between Flutter and JS plugins.
 /// 
@@ -85,6 +91,11 @@ class SynapseHost {
   // Initialization
   // =========================================================================
 
+  /// Called when a plugin asks the user a structured question.
+  /// Render the message + fields on the active surface (chat message,
+  /// dialog, or generated form) and return the answers, or null on cancel.
+  SynapsePromptCallback? onPrompt;
+
   /// Initialize the JavaScript runtime and set up the message bridge.
   Future<void> init() async {
     _engine = getJavascriptRuntime();
@@ -126,7 +137,18 @@ class SynapseHost {
       _currentPluginId = pluginId;
     }
     
-    final paramsJson = jsonEncode(params);
+    final dispatchParams = Map<String, dynamic>.from(params);
+    final execution = Map<String, dynamic>.from(
+      dispatchParams['execution'] as Map? ?? const {},
+    );
+    final capabilities = Map<String, dynamic>.from(
+      execution['capabilities'] as Map? ?? const {},
+    );
+    capabilities['prompt'] = onPrompt != null;
+    execution['capabilities'] = capabilities;
+    dispatchParams['execution'] = execution;
+
+    final paramsJson = jsonEncode(dispatchParams);
     final code = "synapse._dispatch('$intent', $paramsJson)";
     final result = _engine.evaluate(code);
     
@@ -152,11 +174,6 @@ class SynapseHost {
       case 'fetch':
         await _handleFetch(id, payload);
         break;
-        
-      // Legacy network (backwards compatibility)
-      case 'network_request':
-        await _handleFetch(id, payload);
-        break;
 
       // UI
       case 'ui_show':
@@ -166,12 +183,16 @@ class SynapseHost {
       case 'ui_toast':
         _handleToast(payload);
         break;
-        
+
       case 'ui_confirm':
         await _handleConfirm(id, payload);
         break;
 
-      // Auth
+      // Prompt (surface-agnostic question)
+      case 'prompt':
+        await _handlePrompt(id, payload);
+        break;
+
       case 'auth_check':
         await _handleAuthCheck(id, payload);
         break;
@@ -342,6 +363,30 @@ class SynapseHost {
       _resolvePromise(id, result);
     } catch (e) {
       _resolvePromise(id, false);
+    }
+  }
+
+  /// Handle a structured question from the plugin (synapse.prompt()).
+  /// The host decides the surface: chat message, dialog, or generated form.
+  /// Resolves with `{cancelled: true}` on cancel or missing callback.
+  Future<void> _handlePrompt(String? id, Map<String, dynamic> payload) async {
+    if (id == null) return;
+
+    if (onPrompt == null) {
+      _resolvePromise(id, {'cancelled': true});
+      return;
+    }
+
+    try {
+      final values = await onPrompt!(payload);
+      _resolvePromise(
+        id,
+        values == null
+            ? {'cancelled': true}
+            : {'cancelled': false, 'values': values},
+      );
+    } catch (e) {
+      _resolvePromise(id, null, error: e.toString());
     }
   }
 

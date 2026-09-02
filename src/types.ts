@@ -48,6 +48,66 @@ export interface SynapseContext {
         locale?: string;
         timezone?: string;
     };
+    /**
+     * Where this run started. Determines how the user should be asked
+     for follow-up input: `chat` runs answer inside the conversation
+     (via `synapse.prompt()`), `share` runs may show HTML UI
+     (via `synapse.ui.show()`).
+     */
+    execution?: {
+        surface: 'share' | 'chat';
+        /** Host capabilities available on the current execution surface. */
+        capabilities?: {
+            /** Whether the host can render and answer `synapse.prompt()` calls. */
+            prompt?: boolean;
+        };
+    };
+}
+
+// =============================================================================
+// Prompt Types
+// =============================================================================
+
+/** A single input field in a `synapse.prompt()` question. */
+export interface PromptField {
+    /** Key in the returned values map */
+    name: string;
+    /** `text` is a free-text input, `select` is a single choice from options */
+    type: 'text' | 'select';
+    /** Human-readable field label */
+    label: string;
+    /** Placeholder text (text fields only) */
+    placeholder?: string;
+    /** Whether the host should require a value before submitting */
+    required?: boolean;
+    /** Pre-selected/pre-filled value */
+    defaultValue?: string;
+    /** Choices for `select` fields */
+    options?: Array<{ value: string; label: string }>;
+}
+
+/** A structured question the host can render on any surface. */
+export interface PromptSpec {
+    /** The question to show the user */
+    message: string;
+    /** Input fields; usually one — keep prompts small */
+    fields: PromptField[];
+}
+
+/** Result of `synapse.prompt()`. */
+export interface PromptResult {
+    /** True if the user dismissed/cancelled the question */
+    cancelled: boolean;
+    /** Map of field name → user answer (absent when cancelled) */
+    values?: Record<string, string>;
+}
+
+/** Host-supplied payload for one dispatch; becomes the handler's context. */
+export interface SynapseDispatchParams {
+    input?: SynapseContext['input'];
+    llm?: SynapseContext['llm'];
+    user?: SynapseContext['user'];
+    execution?: SynapseContext['execution'];
 }
 
 /** Handler function for processing intents */

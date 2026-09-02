@@ -5,3 +5,9 @@ dist
 .idea
 cli/node_modules
 cli/dist
+
+# Packaged plugin artifacts (regenerate with `synapse package`)
+*.synx
+
+# Flutter example build outputs
+flutter_example/**/build/

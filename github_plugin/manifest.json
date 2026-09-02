@@ -1,0 +1,39 @@
+{
+  "$schema": "../schemas/manifest.schema.json",
+  "id": "com.github.create-issue",
+  "name": "Create GitHub Issue",
+  "version": "1.0.0",
+  "description": "Create an issue in one of your GitHub repositories",
+  "author": "Synapse",
+  "security": {
+    "allowedDomains": ["api.github.com"],
+    "permissions": ["network", "ui"]
+  },
+  "auth": {
+    "type": "oauth2",
+    "provider": "github",
+    "scopes": ["repo"]
+  },
+  "triggers": ["create_issue", "create_github_issue", "file_github_issue"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "repo": {
+        "type": "string",
+        "description": "Repository as owner/name (or bare name, matched against your repos)"
+      },
+      "title": {
+        "type": "string",
+        "description": "Issue title"
+      },
+      "body": {
+        "type": "string",
+        "description": "Issue body"
+      },
+      "labels": {
+        "type": "array",
+        "description": "Labels to apply"
+      }
+    }
+  }
+}

@@ -23,7 +23,7 @@
     },
     "scripts": {
         "build": "tsup",
-        "test": "node test/test_mock.js"
+        "test": "node test/smoke.js"
     },
     "keywords": [
         "synapse",

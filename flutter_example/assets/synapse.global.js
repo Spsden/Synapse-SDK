@@ -206,6 +206,8 @@ var SynapseSDK = (() => {
         logout: async (provider) => {
           await Bridge.send("auth_logout", { provider });
         }
+        // Access tokens are never exposed to plugins. Use synapse.fetch
+        // with `provider` to get Authorization injected by the host.
       };
       // =========================================================================
       // Storage Namespace
@@ -253,6 +255,192 @@ var SynapseSDK = (() => {
          */
         clear: async () => {
           await Bridge.send("storage_clear", {});
+        }
+      };
+      // =========================================================================
+      // Config Namespace
+      // =========================================================================
+      /**
+       * Plugin configuration for API keys and user settings.
+       * Values are stored encrypted and scoped to the plugin.
+       * Config fields are declared in plugin.json and the host auto-generates UI.
+       */
+      this.config = {
+        /**
+         * Get a config value.
+          *
+          * @param key - Config key as declared in plugin.json
+         * @returns The config value or null if not set
+          *
+          * @example
+         * const apiKey = await synapse.config.get('openai_api_key');
+         */
+        get: async (key) => {
+          return Bridge.send("config_get", { key }, true);
+        },
+        /**
+         * Set a config value programmatically.
+         * Note: Users typically set these via the plugin settings UI.
+          *
+          * @param key - Config key
+         * @param value - Value to store
+         */
+        set: async (key, value) => {
+          await Bridge.send("config_set", { key, value });
+        }
+      };
+      // =========================================================================
+      // System Namespace (Shortcuts, Intents, AppleScript & EventKit)
+      // =========================================================================
+      /**
+       * System utilities for OS-level integration.
+        *
+        * Provides access to:
+       * - **Shortcuts** (iOS/macOS) — trigger Apple Shortcuts
+       * - **Intents** (Android) — send Android Intents
+       * - **AppleScript** (macOS) — execute AppleScript for any scriptable app
+       * - **Calendar** (iOS/macOS) — read/write calendar events via EventKit
+       * - **Platform** — detect the current OS
+       */
+      this.system = {
+        /**
+         * Get the current platform.
+         * Use this to build cross-platform plugins with graceful fallbacks.
+          *
+          * @returns The current platform identifier
+          *
+          * @example
+         * const platform = await synapse.system.platform();
+         * if (platform === 'macos') {
+         *   await synapse.system.runAppleScript('tell application "Notes" to activate');
+         * } else {
+         *   await synapse.system.runShortcut('Open Notes');
+         * }
+         */
+        platform: async () => {
+          return Bridge.send("system_platform", {}, true);
+        },
+        /**
+         * Run an iOS Shortcut.
+          *
+          * @param name - Name of the shortcut on the user's device
+         * @param input - Optional text input for the shortcut
+          *
+          * @example
+         * await synapse.system.runShortcut('Save to Keep', 'Buy milk');
+         */
+        runShortcut: async (name, input) => {
+          return Bridge.send("system_runShortcut", { name, input }, true);
+        },
+        /**
+         * Send an Android Intent.
+          *
+          * @param options - Intent configuration
+          *
+          * @example
+         * await synapse.system.sendIntent({
+         *   action: 'android.intent.action.SEND',
+         *   type: 'text/plain',
+         *   package: 'com.google.android.keep',
+         *   extras: { 'android.intent.extra.TEXT': 'Buy milk' }
+         * });
+         */
+        sendIntent: async (options) => {
+          return Bridge.send("system_sendIntent", options, true);
+        },
+        // =====================================================================
+        // AppleScript (macOS only)
+        // =====================================================================
+        /**
+         * Execute an AppleScript on macOS.
+         * Requires 'applescript' permission in the plugin manifest.
+          *
+          * The host validates that the script only targets apps declared in
+         * the manifest's `allowedApps` list, and blocks dangerous commands
+         * like `do shell script`.
+          *
+          * @param script - The AppleScript source code to execute
+         * @param options - Execution options (timeout, etc.)
+         * @returns The script's return value as a string, or null
+          *
+          * @example
+         * // Create an Apple Note
+         * const result = await synapse.system.runAppleScript(`
+         *   tell application "Notes"
+         *     make new note at folder "Notes" with properties {name:"Hello", body:"World"}
+         *   end tell
+         * `);
+          *
+          * @example
+         * // Get current track from Apple Music
+         * const track = await synapse.system.runAppleScript(`
+         *   tell application "Music"
+         *     if player state is playing then
+         *       return name of current track
+         *     end if
+         *   end tell
+         * `);
+         */
+        runAppleScript: async (script, options) => {
+          return Bridge.send("system_runAppleScript", {
+            script,
+            timeoutMs: options?.timeoutMs ?? 1e4
+          }, true);
+        },
+        // =====================================================================
+        // EventKit Calendar (iOS & macOS)
+        // =====================================================================
+        /**
+         * Calendar API powered by EventKit.
+         * Requires 'calendar' permission in the plugin manifest.
+         * Works on both iOS and macOS.
+         */
+        calendar: {
+          /**
+           * List available calendars.
+            *
+            * @returns Array of calendar info objects
+            *
+            * @example
+           * const calendars = await synapse.system.calendar.getCalendars();
+           * const work = calendars.find(c => c.title === 'Work');
+           */
+          getCalendars: async () => {
+            return Bridge.send("system_calendar_getCalendars", {}, true);
+          },
+          /**
+           * Query calendar events within a date range.
+            *
+            * @param options - Query parameters (date range, optional calendar filter)
+           * @returns Array of calendar events
+            *
+            * @example
+           * const events = await synapse.system.calendar.getEvents({
+           *   startDate: '2026-04-06T00:00:00',
+           *   endDate: '2026-04-07T00:00:00'
+           * });
+           */
+          getEvents: async (options) => {
+            return Bridge.send("system_calendar_getEvents", options, true);
+          },
+          /**
+           * Create a new calendar event.
+            *
+            * @param event - Event parameters
+           * @returns Object with the created event's ID
+            *
+            * @example
+           * const { eventId } = await synapse.system.calendar.createEvent({
+           *   title: 'Team Standup',
+           *   startDate: '2026-04-07T09:00:00',
+           *   endDate: '2026-04-07T09:30:00',
+           *   notes: 'Daily sync',
+           *   location: 'Zoom'
+           * });
+           */
+          createEvent: async (event) => {
+            return Bridge.send("system_calendar_createEvent", event, true);
+          }
         }
       };
       // =========================================================================
@@ -308,23 +496,25 @@ var SynapseSDK = (() => {
       const handler = this.handlers.get(intent);
       const ctx = {
         input: params.input || { type: "text" },
-        llm: params.llm || { intent, entities: params },
-        user: params.user
+        llm: params.llm || { intent, entities: { ...params } },
+        user: params.user,
+        execution: params.execution
       };
       if (!handler) {
-        return this.fail({
+        Bridge.send("finished", this.fail({
           reason: "not_implemented",
           message: `No handler registered for intent: ${intent}`
-        });
+        }));
+        return;
       }
       try {
         const result = await handler(ctx);
         Bridge.send("finished", result);
       } catch (e) {
-        this.fail({
+        Bridge.send("finished", this.fail({
           reason: "execution_error",
-          message: e.message || "Unknown error during execution"
-        });
+          message: e instanceof Error ? e.message : String(e)
+        }));
       }
     }
     // =========================================================================
@@ -352,7 +542,8 @@ var SynapseSDK = (() => {
      * const res = await synapse.fetch('https://api.example.com/users', {
      *   method: 'POST',
      *   headers: { 'Content-Type': 'application/json' },
-     *   body: JSON.stringify({ name: 'John' })
+     *   body: JSON.stringify({ name: 'John' }),
+     *   provider: 'google'
      * });
      */
     async fetch(url, init) {
@@ -360,10 +551,47 @@ var SynapseSDK = (() => {
         url,
         method: init?.method || "GET",
         headers: init?.headers || {},
-        body: typeof init?.body === "object" ? JSON.stringify(init.body) : init?.body
+        body: typeof init?.body === "object" ? JSON.stringify(init.body) : init?.body,
+        provider: init?.provider
       };
       const responseData = await Bridge.send("fetch", request, true);
       return new SynapseResponse(responseData);
+    }
+    // =========================================================================
+    // Prompt (surface-agnostic user questions)
+    // =========================================================================
+    /**
+     * Ask the user a structured question and wait for the answer.
+     *
+     * Unlike `synapse.ui.show()` (explicit HTML, best for share-capture
+     * flows), `prompt()` is declarative: the host renders it on whatever
+     * surface the run started from. In a chat run the question is asked
+     * inside the conversation; in a share run the host shows a form
+     * (dialog or generated UI). Plugins should use this only when the
+     * dispatch context advertises `execution.capabilities.prompt`.
+     *
+     * @param spec - The question and its input fields
+     * @returns The user's answers, or `{ cancelled: true }` if dismissed
+     *
+     * @example
+     * const result = await synapse.prompt({
+     *   message: 'Which playlist?',
+     *   fields: [{
+     *     name: 'playlist',
+     *     type: 'select',
+     *     label: 'Playlist',
+     *     required: true,
+     *     options: [
+     *       { value: 'p1', label: 'Road Trip' },
+     *     ]
+     *   }]
+     * });
+     * if (!result.cancelled && result.values) {
+     *   addTrack(result.values.playlist);
+     * }
+     */
+    async prompt(spec) {
+      return Bridge.send("prompt", spec, true);
     }
     // =========================================================================
     // Upload
@@ -380,7 +608,8 @@ var SynapseSDK = (() => {
      *   fileRef: ctx.input.imageRef,  // blob://capture_123
      *   url: 'https://api.example.com/attachments',
      *   fieldName: 'attachment',
-     *   formFields: { ticketId: 'PROJ-123' }
+     *   formFields: { ticketId: 'PROJ-123' },
+     *   provider: 'google'
      * });
      */
     async upload(params) {
@@ -409,7 +638,8 @@ var SynapseSDK = (() => {
       };
     }
     /**
-     * Create a failure result and notify the host.
+     * Create a failure result. Return it from an intent handler so the
+     * dispatcher can notify the host exactly once.
      * 
      * @param error - Error details
      * @returns SynapseResult with status 'fail'
@@ -422,7 +652,6 @@ var SynapseSDK = (() => {
      * });
      */
     fail(error) {
-      Bridge.send("finished", { status: "error", ...error });
       return {
         status: "fail",
         error: error.message

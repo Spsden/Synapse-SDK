@@ -286,7 +286,7 @@ npm install
 npm run build
 ```
 
-Output: `dist/synapse.global.js` — copy this to your Flutter assets.
+Output: `dist/index.global.js` — copy this to your Flutter assets (e.g. `flutter_example/assets/synapse.global.js`).
 
 ---
 

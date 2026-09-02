@@ -16,7 +16,10 @@ import {
     CalendarQueryOptions,
     CalendarEventParams,
     McpCallOptions,
-    McpCallResult
+    McpCallResult,
+    PromptSpec,
+    PromptResult,
+    SynapseDispatchParams
 } from './types';
 
 // =============================================================================
@@ -139,31 +142,33 @@ export class Synapse {
      * Internal: Called by the host to dispatch an intent.
      * @internal
      */
-    async _dispatch(intent: string, params: any): Promise<void> {
+    async _dispatch(intent: string, params: SynapseDispatchParams): Promise<void> {
         const handler = this.handlers.get(intent);
 
         // Build the context object from params
         const ctx: SynapseContext = {
             input: params.input || { type: 'text' },
-            llm: params.llm || { intent, entities: params },
-            user: params.user
+            llm: params.llm || { intent, entities: { ...params } },
+            user: params.user,
+            execution: params.execution
         };
 
         if (!handler) {
-            return this.fail({
+            Bridge.send('finished', this.fail({
                 reason: 'not_implemented',
                 message: `No handler registered for intent: ${intent}`
-            }) as any;
+            }));
+            return;
         }
 
         try {
             const result = await handler(ctx);
             Bridge.send('finished', result);
-        } catch (e: any) {
-            this.fail({
+        } catch (e: unknown) {
+            Bridge.send('finished', this.fail({
                 reason: 'execution_error',
-                message: e.message || 'Unknown error during execution'
-            });
+                message: e instanceof Error ? e.message : String(e)
+            }));
         }
     }
 
@@ -209,6 +214,44 @@ export class Synapse {
 
         const responseData = await Bridge.send('fetch', request, true);
         return new SynapseResponse(responseData);
+    }
+
+    // =========================================================================
+    // Prompt (surface-agnostic user questions)
+    // =========================================================================
+
+    /**
+     * Ask the user a structured question and wait for the answer.
+     *
+     * Unlike `synapse.ui.show()` (explicit HTML, best for share-capture
+     * flows), `prompt()` is declarative: the host renders it on whatever
+     * surface the run started from. In a chat run the question is asked
+     * inside the conversation; in a share run the host shows a form
+     * (dialog or generated UI). Plugins should use this only when the
+     * dispatch context advertises `execution.capabilities.prompt`.
+     *
+     * @param spec - The question and its input fields
+     * @returns The user's answers, or `{ cancelled: true }` if dismissed
+     *
+     * @example
+     * const result = await synapse.prompt({
+     *   message: 'Which playlist?',
+     *   fields: [{
+     *     name: 'playlist',
+     *     type: 'select',
+     *     label: 'Playlist',
+     *     required: true,
+     *     options: [
+     *       { value: 'p1', label: 'Road Trip' },
+     *     ]
+     *   }]
+     * });
+     * if (!result.cancelled && result.values) {
+     *   addTrack(result.values.playlist);
+     * }
+     */
+    async prompt(spec: PromptSpec): Promise<PromptResult> {
+        return Bridge.send('prompt', spec, true);
     }
 
     // =========================================================================
@@ -735,7 +778,8 @@ export class Synapse {
     }
 
     /**
-     * Create a failure result and notify the host.
+     * Create a failure result. Return it from an intent handler so the
+     * dispatcher can notify the host exactly once.
      * 
      * @param error - Error details
      * @returns SynapseResult with status 'fail'
@@ -748,7 +792,6 @@ export class Synapse {
      * });
      */
     fail(error: { reason: string; message: string; retryable?: boolean }): SynapseResult {
-        Bridge.send('finished', { status: 'error', ...error });
         return {
             status: 'fail',
             error: error.message

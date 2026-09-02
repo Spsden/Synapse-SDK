@@ -61,6 +61,58 @@ interface SynapseContext {
         /** User's timezone (e.g., "America/New_York") */
         timezone?: string;
     };
+    /**
+     * Where this run started. Determines how the user should be asked
+     * for follow-up input: `chat` runs answer inside the conversation
+     * (via `synapse.prompt()`), `share` runs may show HTML UI
+     * (via `synapse.ui.show()`).
+     */
+    execution?: {
+        surface: 'share' | 'chat';
+        /** Host capabilities available on the current execution surface. */
+        capabilities?: {
+            /** Whether the host can render and answer `synapse.prompt()` calls. */
+            prompt?: boolean;
+        };
+    };
+}
+
+// =============================================================================
+// Prompt Types
+// =============================================================================
+
+/** A single input field in a `synapse.prompt()` question. */
+interface PromptField {
+    /** Key in the returned values map */
+    name: string;
+    /** `text` is a free-text input, `select` is a single choice from options */
+    type: 'text' | 'select';
+    /** Human-readable field label */
+    label: string;
+    /** Placeholder text (text fields only) */
+    placeholder?: string;
+    /** Whether the host should require a value before submitting */
+    required?: boolean;
+    /** Pre-selected/pre-filled value */
+    defaultValue?: string;
+    /** Choices for `select` fields */
+    options?: Array<{ value: string; label: string }>;
+}
+
+/** A structured question the host can render on any surface. */
+interface PromptSpec {
+    /** The question to show the user */
+    message: string;
+    /** Input fields; usually one — keep prompts small */
+    fields: PromptField[];
+}
+
+/** Result of `synapse.prompt()`. */
+interface PromptResult {
+    /** True if the user dismissed/cancelled the question */
+    cancelled: boolean;
+    /** Map of field name → user answer (absent when cancelled) */
+    values?: Record<string, string>;
 }
 
 /** Handler function for processing intents */
@@ -449,6 +501,36 @@ interface SynapseSDK {
     fetch(url: string, init?: SynapseRequestInit): Promise<SynapseResponse>;
 
     /**
+     * Ask the user a structured question and wait for the answer.
+     *
+     * Unlike `synapse.ui.show()` (explicit HTML, best for share-capture
+     * flows), `prompt()` is declarative: the host renders it on whatever
+     * surface the run started from. In a chat run the question is asked
+     * inside the conversation; in a share run the host shows a form
+     * (dialog or generated UI). Plugins should use this only when the
+     * dispatch context advertises `execution.capabilities.prompt`.
+     *
+     * @param spec - The question and its input fields
+     * @returns The user's answers, or `{ cancelled: true }` if dismissed
+     *
+     * @example
+     * const result = await synapse.prompt({
+     *   message: 'Which playlist?',
+     *   fields: [{
+     *     name: 'playlist',
+     *     type: 'select',
+     *     label: 'Playlist',
+     *     required: true,
+     *     options: [{ value: 'p1', label: 'Road Trip' }]
+     *   }]
+     * });
+     * if (!result.cancelled && result.values) {
+     *   addTrack(result.values.playlist);
+     * }
+     */
+    prompt(spec: PromptSpec): Promise<PromptResult>;
+
+    /**
      * Upload a file to a remote server.
      * Used for uploading images/attachments captured by the host.
      * 
@@ -481,7 +563,8 @@ interface SynapseSDK {
     success(data?: any): SynapseResult;
 
     /**
-     * Create a failure result and notify the host.
+     * Create a failure result. Return it from an intent handler so the
+     * dispatcher can notify the host exactly once.
      * 
      * @param error - Error details
      * @returns SynapseResult with status 'fail'
@@ -826,6 +909,7 @@ declare global {
      * Provides methods for:
      * - **Intent handling**: `synapse.register()`, `synapse.success()`, `synapse.fail()`
      * - **Network**: `synapse.fetch()`, `synapse.upload()`
+     * - **Questions**: `synapse.prompt()` (chat or UI, host decides)
      * - **UI**: `synapse.ui.show()`, `synapse.ui.toast()`, `synapse.ui.confirm()`
      * - **Auth**: `synapse.auth.authenticate()`, `synapse.auth.isAuthenticated()`
      * - **Storage**: `synapse.storage.get()`, `synapse.storage.set()`
