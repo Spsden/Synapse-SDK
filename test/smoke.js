@@ -2,6 +2,8 @@
 // Spotify/GitHub/Notion plugins. Runs dist/index.global.js in a vm with a mock
 // host: connections always succeed, fetch returns canned API responses, MCP
 // tool calls return canned results, and prompts simulate user answers.
+// Both transports are covered: the legacy `sendMessage` mock below, and the
+// fjs-native `fjs.bridge_call` mock (protocol v2) at the bottom.
 //
 //   node test/smoke.js
 
@@ -23,6 +25,7 @@ const state = {
     addedUris: null,
     createdIssue: null,
     directRepoFetched: false,
+    bridgeEnvelopes: [],
     finishedResults: [],
 };
 
@@ -161,6 +164,89 @@ function makeContext(behavior) {
         JSON,
     });
     context.sendMessage = makeHost(context, behavior);
+    const sdk = fs.readFileSync(path.join(__dirname, '../dist/index.global.js'), 'utf8');
+    vm.runInContext(sdk, context);
+    return context;
+}
+
+// The mock fjs host: answers {v: 2, type, payload} envelopes the way the
+// fjs-native SynapseHost would, resolving the calling promise directly.
+function makeNativeHost(behavior) {
+    return (envelope) => {
+        if (envelope == null || envelope.v !== 2 || typeof envelope.type !== 'string') {
+            return Promise.resolve(null);
+        }
+        state.bridgeEnvelopes.push(envelope);
+        switch (envelope.type) {
+            case 'log':
+                return Promise.resolve(null);
+            case 'fetch': {
+                if (behavior.rejectFetch) {
+                    return Promise.resolve({
+                        __synapseError: {
+                            code: 'PERMISSION_DENIED',
+                            message: 'This action is not allowed to access that URL.',
+                        },
+                    });
+                }
+                const { url, method, body } = envelope.payload;
+                state.fetchCalls.push({ url, method, body });
+                const responder = url.includes('api.spotify.com')
+                    ? spotifyApi
+                    : githubApi;
+                const found = responder(url);
+                return Promise.resolve({
+                    status: found.status,
+                    ok: found.status >= 200 && found.status < 300,
+                    statusText: found.status === 200 ? 'OK' : 'Error',
+                    headers: {},
+                    body: JSON.stringify(found.body),
+                });
+            }
+            case 'connection_check':
+                return Promise.resolve(true);
+            case 'connection_connect':
+                return Promise.resolve(undefined);
+            case 'mcp_callTool': {
+                state.mcpCalls.push(envelope.payload);
+                const call = envelope.payload;
+                if (call.serverName === 'notion' && call.toolName === 'notion-create-pages') {
+                    return Promise.resolve({ success: true, data: { id: 'page-1', url: 'https://notion.so/page-1' } });
+                }
+                if (call.serverName === 'notion' && call.toolName === 'notion-search') {
+                    return Promise.resolve({
+                        success: true,
+                        data: {
+                            results: [
+                                { id: 'db-1', title: [{ plain_text: 'Meeting Notes' }], object: 'database', url: 'https://notion.so/db-1' }
+                            ]
+                        }
+                    });
+                }
+                return Promise.resolve({ success: false, error: `No mock for ${call.serverName}.${call.toolName}` });
+            }
+            case 'prompt': {
+                state.promptCalls.push(envelope.payload);
+                const field = envelope.payload.fields[0];
+                const value = field.type === 'select'
+                    ? field.options[0].value
+                    : behavior.textAnswer;
+                return Promise.resolve({ cancelled: false, values: { [field.name]: value } });
+            }
+            default:
+                return Promise.resolve(null);
+        }
+    };
+}
+
+function makeNativeContext(behavior) {
+    const context = vm.createContext({
+        console: { log: () => {}, warn: () => {}, error: () => {} },
+        setTimeout,
+        clearTimeout,
+        JSON,
+    });
+    context.fjs = { bridge_call: makeNativeHost(behavior) };
     const sdk = fs.readFileSync(path.join(__dirname, '../dist/index.global.js'), 'utf8');
     vm.runInContext(sdk, context);
     return context;
@@ -322,6 +408,41 @@ const waitFor = (getResult) => new Promise((resolve) => {
         assert('run completed', Boolean(finished));
         assert('returned a failure result', finished && finished.status === 'fail');
         assert('emitted exactly one completion result', state.finishedResults.length === 1);
+        done(true);
+    });
+    // --- Scenario 7: fjs-native transport basics ---------------------------
+    await run('v2: bridge captured, global hidden, dispatch resolves with result', async (done) => {
+        state.fetchCalls = []; state.promptCalls = []; state.bridgeEnvelopes = []; state.finishedResults = [];
+        const context = makeNativeContext({});
+        assert('fjs global removed after SDK load', vm.runInContext('typeof fjs', context) === 'undefined');
+        assert('synapse still exposed for plugin code', vm.runInContext('typeof synapse', context) === 'object');
+        loadPlugin(context, 'plugins/spotify');
+        const finished = await dispatch(context, 'add_to_playlist', {
+            input: { type: 'text', text: 'test song' },
+            llm: { intent: 'add_to_playlist', entities: { query: 'test song', playlist: 'road' } },
+            execution: { surface: 'chat', capabilities: { prompt: true } },
+        });
+        assert('dispatch resolved with the result', Boolean(finished));
+        assert('succeeded', finished && finished.status === 'success');
+        assert('prompt round-trip worked', state.promptCalls.length === 1);
+        assert('no finished event on the native transport', state.finishedResults.length === 0);
+        assert('every envelope carried the v2 marker', state.bridgeEnvelopes.every((e) => e.v === 2 && typeof e.type === 'string'));
+        done(true);
+    });
+
+    // --- Scenario 8: host rejections reject the SDK call -------------------
+    await run('v2: __synapseError reply rejects the SDK call', async (done) => {
+        state.fetchCalls = []; state.bridgeEnvelopes = [];
+        const context = makeNativeContext({ rejectFetch: true });
+        loadPlugin(context, 'plugins/github');
+        const finished = await dispatch(context, 'file_github_issue', {
+            input: { type: 'url', url: 'https://github.com/owner/repo' },
+            llm: { intent: 'file_github_issue', entities: { title: 'Smoke test title' } },
+            execution: { surface: 'chat', capabilities: { prompt: true } },
+        });
+        assert('failed through the host rejection', finished && finished.status === 'fail');
+        assert('host error message surfaced to the plugin', finished && finished.error === 'This action is not allowed to access that URL.');
+        assert('rejected before any fetch completed', state.fetchCalls.length === 0);
         done(true);
     });
 
