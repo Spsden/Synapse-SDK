@@ -3,8 +3,8 @@
   "manifestVersion": 2,
   "id": "com.synapse.notion",
   "name": "Notion",
-  "version": "1.0.3",
-  "description": "Capture notes and pages in Notion through its MCP server.",
+  "version": "1.1.0",
+  "description": "Capture notes and discover databases in Notion through its MCP server.",
   "author": "Synapse",
   "minSynapseVersion": "1.0.0",
   "security": {
@@ -50,6 +50,14 @@
           "content": {
             "type": "string",
             "description": "Markdown-compatible page content."
+          },
+          "databaseId": {
+            "type": "string",
+            "description": "Optional Notion database ID to create the page in."
+          },
+          "parentPageId": {
+            "type": "string",
+            "description": "Optional Notion parent page ID to create the page under."
           }
         }
       },
@@ -58,6 +66,7 @@
         "properties": {
           "tool": { "type": "string" },
           "title": { "type": "string" },
+          "parent": { "type": "string" },
           "result": {}
         }
       },
@@ -71,8 +80,57 @@
         }
       ],
       "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "search_notion",
+      "description": "Search for databases and pages in the user's Notion workspace.",
+      "triggers": ["search_notion", "list_notion_databases"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Optional search term to filter databases or pages by title."
+          },
+          "filter": {
+            "type": "string",
+            "description": "Optional filter: 'database' to list only databases, or 'page' for pages.",
+            "enum": ["database", "page"]
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "filter": { "type": "string" },
+          "count": { "type": "integer" },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "type": { "type": "string" },
+                "url": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "requirements": [
+        {
+          "kind": "mcp",
+          "serverId": "notion",
+          "allow": {
+            "tools": ["notion-search"]
+          }
+        }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
     }
   ],
   "categories": ["productivity"],
-  "keywords": ["notion", "notes", "mcp"]
+  "keywords": ["notion", "notes", "mcp", "database"]
 }
