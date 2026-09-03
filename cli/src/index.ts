@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { packagePlugin } from './commands/package';
 import { validatePlugin } from './commands/validate';
 import { initPlugin } from './commands/init';
+import { runPlugin } from './commands/run';
 
 const program = new Command();
 
@@ -64,14 +65,41 @@ program
     .action(async (name: string, options: { dir?: string }) => {
         try {
             const dir = await initPlugin(name, options.dir);
+            const triggerGuess = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
             console.log(chalk.green(`✓ Plugin initialized: ${dir}`));
             console.log();
             console.log(chalk.bold('  Next steps:'));
-            console.log(chalk.gray(`  1. Open the folder in VS Code: `) + chalk.cyan(`code ${dir}`));
-            console.log(chalk.gray(`  2. Edit manifest.json — `) + chalk.gray(`autocomplete is enabled!`));
-            console.log(chalk.gray(`  3. Write your plugin code in plugin.js`));
-            console.log(chalk.gray(`     Type `) + chalk.cyan(`synapse.`) + chalk.gray(` for full autocomplete & docs`));
-            console.log(chalk.gray(`  4. Package: `) + chalk.cyan(`synapse package ${dir}`));
+            console.log(chalk.gray(`  1. Open in VS Code: `) + chalk.cyan(`code ${dir}`));
+            console.log(chalk.gray(`  2. Edit manifest.json — `) + chalk.gray(`offline schema autocomplete enabled!`));
+            console.log(chalk.gray(`  3. Write code in plugin.js — `) + chalk.gray(`type `) + chalk.cyan(`syn-`) + chalk.gray(` for code snippets`));
+            console.log(chalk.gray(`  4. Test locally: `) + chalk.cyan(`synapse run ${triggerGuess} --dir ${dir} --text "Hello"`));
+            console.log(chalk.gray(`  5. Package: `) + chalk.cyan(`synapse package ${dir}`));
+        } catch (error: any) {
+            console.error(chalk.red(`✗ Error: ${error.message}`));
+            process.exit(1);
+        }
+    });
+
+
+program
+    .command('run <trigger>')
+    .alias('test')
+    .description('Execute a plugin action locally with simulated inputs')
+    .option('-d, --dir <directory>', 'Plugin directory (default: .)')
+    .option('-t, --text <string>', 'Simulated text input')
+    .option('-u, --url <string>', 'Simulated URL input')
+    .option('-i, --image <string>', 'Simulated image path/ref')
+    .option('-s, --surface <surface>', 'Surface mode: chat or share (default: chat)', 'chat')
+    .option('-e, --entity <key=value...>', 'Custom entities (repeatable)', (val: string, prev: string[] = []) => { prev.push(val); return prev; })
+    .option('-j, --json <file>', 'JSON file containing full mock context')
+    .option('-v, --verbose', 'Verbose execution logging')
+    .option('--timeout <ms>', 'Execution timeout in milliseconds', (v: string) => parseInt(v, 10), 30000)
+    .action(async (trigger: string, options: any) => {
+        try {
+            const result = await runPlugin(trigger, options);
+            if (!result.success) {
+                process.exit(1);
+            }
         } catch (error: any) {
             console.error(chalk.red(`✗ Error: ${error.message}`));
             process.exit(1);
