@@ -519,12 +519,6 @@ function handleHostMessage(opts: {
             break;
         }
 
-        case 'ui_show': {
-            console.log(chalk.cyan(`  [ui] show() requested (style: ${payload?.options?.style || 'modal'}, title: "${payload?.options?.title || 'UI'}")`));
-            resolveBridge({ action: 'dismissed' });
-            break;
-        }
-
         case 'ui_toast': {
             console.log(chalk.cyan(`  [toast] ${payload?.message}`));
             resolveBridge(undefined);

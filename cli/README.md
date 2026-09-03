@@ -148,7 +148,6 @@ const answer = await synapse.prompt({
 if (!answer.cancelled) console.log(answer.values.playlist);
 
 // UI (explicit HTML — best for share-capture flows)
-const result = await synapse.ui.show(html, { title, width, height });
 await synapse.ui.toast('message');
 const yes = await synapse.ui.confirm('question?');
 

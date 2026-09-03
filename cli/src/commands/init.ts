@@ -315,28 +315,6 @@ synapse.register('${triggerName}', async (ctx) => {
                 "const val = await synapse.storage.get('${1:key}');"
             ],
             description: 'Store and retrieve persistent plugin state'
-        },
-        'Synapse UI Sheet': {
-            prefix: 'syn-ui',
-            body: [
-                "const html = `",
-                "  <style>",
-                "    body { font-family: system-ui, sans-serif; padding: 16px; margin: 0; }",
-                "    button { padding: 10px 16px; background: #0070f3; color: white; border: none; border-radius: 6px; cursor: pointer; }",
-                "  </style>",
-                "  <div>",
-                "    <h3>${1:Title}</h3>",
-                "    <p>${2:Content}</p>",
-                "    <button onclick=\"SynapseBridge.postMessage({ action: 'confirm' })\">Confirm</button>",
-                "  </div>",
-                "`;",
-                "",
-                "const uiResult = await synapse.ui.show(html, {",
-                "  title: '${1:Title}',",
-                "  style: 'sheet'",
-                "});"
-            ],
-            description: 'Show an interactive HTML UI sheet with SynapseBridge return'
         }
     };
 
@@ -435,7 +413,7 @@ function copyTypeDefs(pluginDir: string): void {
     }
 
     // Fallback stub if types not located
-    const stub = `// Synapse SDK Type Definitions\ndeclare const synapse: any;\ndeclare const SynapseBridge: { postMessage(data: any): void };\n`;
+    const stub = `// Synapse SDK Type Definitions\ndeclare const synapse: any;\n`;
     fs.writeFileSync(targetPath, stub);
 }
 
