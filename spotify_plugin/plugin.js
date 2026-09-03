@@ -9,17 +9,14 @@ async function addToPlaylist(ctx) {
   synapse.log('Spotify: add_to_playlist triggered');
 
   try {
-    // 1. Authenticate
-    if (!await synapse.auth.isAuthenticated('spotify')) {
-      synapse.log('Spotify: requesting login');
-      try {
-        await synapse.auth.authenticate('spotify');
-      } catch (e) {
-        return synapse.fail({
-          reason: 'auth_failed',
-          message: 'Spotify login was declined or failed.'
-        });
-      }
+    // 1. Connect (manifest v2 named connection)
+    try {
+      await ensureSpotifyConnection();
+    } catch (e) {
+      return synapse.fail({
+        reason: 'auth_failed',
+        message: 'Spotify login was declined or failed.'
+      });
     }
 
     // 2. Resolve the track (direct link, single search hit, or ask)
@@ -53,7 +50,7 @@ async function addToPlaylist(ctx) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uris: [track.uri] }),
-      provider: 'spotify'
+      connection: 'spotify'
     });
 
     if (!res.ok) {
@@ -84,6 +81,15 @@ async function addToPlaylist(ctx) {
 synapse.register('add_to_playlist', addToPlaylist);
 synapse.register('add_to_spotify', addToPlaylist);
 synapse.register('save_track_to_playlist', addToPlaylist);
+
+async function ensureSpotifyConnection() {
+  if (await synapse.connections.isConnected('spotify')) return;
+  synapse.log('Spotify: requesting login');
+  await synapse.connections.connect('spotify');
+  if (!(await synapse.connections.isConnected('spotify'))) {
+    throw new Error('Spotify connection was not completed.');
+  }
+}
 
 // =============================================================================
 // Track resolution
@@ -124,7 +130,7 @@ async function resolveTrack(ctx) {
 
 async function fetchTrack(id) {
   const res = await synapse.fetch(`${SPOTIFY_API}/tracks/${id}`, {
-    provider: 'spotify'
+    connection: 'spotify'
   });
   if (!res.ok) {
     return null;
@@ -136,7 +142,7 @@ async function fetchTrack(id) {
 async function searchTracks(query, limit) {
   const res = await synapse.fetch(
     `${SPOTIFY_API}/search?q=${encodeURIComponent(query)}&type=track&limit=${limit}`,
-    { provider: 'spotify' }
+    { connection: 'spotify' }
   );
   if (!res.ok) {
     throw new Error(`Spotify search failed: ${res.statusText}`);
@@ -163,7 +169,7 @@ function mapTrack(item) {
 
 async function fetchPlaylists() {
   const res = await synapse.fetch(`${SPOTIFY_API}/me/playlists?limit=50`, {
-    provider: 'spotify'
+    connection: 'spotify'
   });
   if (!res.ok) {
     throw new Error(`Failed to fetch playlists: ${res.statusText}`);

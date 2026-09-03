@@ -95,8 +95,6 @@ function makeHost(context, behavior) {
         switch (msg.type) {
             case 'log':
                 return;
-            case 'auth_check':
-                return reply(true);
             case 'fetch': {
                 const { url, method, body } = msg.payload;
                 state.fetchCalls.push({ url, method, body });

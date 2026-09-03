@@ -11,7 +11,8 @@ playlists.
 
 ## How it works
 
-1. Authenticates with Spotify (OAuth handled by the host).
+1. Connects to Spotify through the `spotify` named connection (OAuth
+   handled by the host).
 2. Resolves the track from a shared Spotify link, LLM entities
    (`query` / `title` + `artist`), or the shared text. Ambiguous matches
    ask the user.
@@ -27,5 +28,7 @@ playlists.
 
 ## Setup
 
-Requires a Spotify OAuth provider named `spotify` configured in the host,
-with the scopes declared in `manifest.json`.
+Requires a `spotify` connection (alias `spotify`, OAuth provider
+`spotify`, playlist read/modify scopes) declared in `manifest.json`. The
+host manages the token and injects it into `synapse.fetch()` calls made
+with `connection: 'spotify'`.

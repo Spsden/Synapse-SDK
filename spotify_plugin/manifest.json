@@ -1,44 +1,72 @@
 {
   "$schema": "../schemas/manifest.schema.json",
+  "manifestVersion": 2,
   "id": "com.spotify.add",
   "name": "Add to Spotify Playlist",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Find a track on Spotify and add it to one of your playlists",
   "author": "Synapse",
+  "minSynapseVersion": "1.0.0",
   "security": {
     "allowedDomains": ["api.spotify.com"],
     "permissions": ["network", "ui"]
   },
-  "auth": {
-    "type": "oauth2",
-    "provider": "spotify",
-    "scopes": [
-      "playlist-read-private",
-      "playlist-read-collaborative",
-      "playlist-modify-public",
-      "playlist-modify-private"
-    ]
-  },
-  "triggers": ["add_to_playlist", "add_to_spotify", "save_track_to_playlist"],
-  "inputSchema": {
-    "type": "object",
-    "properties": {
-      "query": {
-        "type": "string",
-        "description": "Free-text track search query"
-      },
-      "title": {
-        "type": "string",
-        "description": "Track title (combined with artist for the search)"
-      },
-      "artist": {
-        "type": "string",
-        "description": "Track artist (combined with title for the search)"
-      },
-      "playlist": {
-        "type": "string",
-        "description": "Target playlist name (matched against the user's playlists)"
-      }
+  "connections": [
+    {
+      "alias": "spotify",
+      "provider": "spotify",
+      "type": "oauth2",
+      "scopes": [
+        "playlist-read-private",
+        "playlist-read-collaborative",
+        "playlist-modify-public",
+        "playlist-modify-private"
+      ]
     }
-  }
+  ],
+  "actions": [
+    {
+      "id": "add_to_playlist",
+      "description": "Find a track on Spotify and add it to one of your playlists.",
+      "triggers": ["add_to_playlist", "add_to_spotify", "save_track_to_playlist"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Free-text track search query"
+          },
+          "title": {
+            "type": "string",
+            "description": "Track title (combined with artist for the search)"
+          },
+          "artist": {
+            "type": "string",
+            "description": "Track artist (combined with title for the search)"
+          },
+          "playlist": {
+            "type": "string",
+            "description": "Target playlist name (matched against the user's playlists)"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string" },
+          "track": { "type": "string" },
+          "artists": { "type": "string" },
+          "playlist": { "type": "string" },
+          "link": { "type": "string" }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "spotify" },
+        { "kind": "network", "domains": ["api.spotify.com"] }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    }
+  ],
+  "categories": ["media"],
+  "keywords": ["spotify", "music", "playlist"]
 }
