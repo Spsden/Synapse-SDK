@@ -139,9 +139,15 @@ export class Synapse {
 
     /**
      * Internal: Called by the host to dispatch an intent.
+     *
+     * Resolves with the handler's SynapseResult so fjs-native hosts can read
+     * the completion value of the awaited call directly. Legacy hosts listen
+     * for the `finished` bridge event instead, which is only emitted when the
+     * native transport is inactive.
+     *
      * @internal
      */
-    async _dispatch(intent: string, params: SynapseDispatchParams): Promise<void> {
+    async _dispatch(intent: string, params: SynapseDispatchParams): Promise<SynapseResult> {
         const handler = this.handlers.get(intent);
 
         // Build the context object from params
@@ -153,22 +159,32 @@ export class Synapse {
         };
 
         if (!handler) {
-            Bridge.send('finished', this.fail({
+            return this.complete(this.fail({
                 reason: 'not_implemented',
                 message: `No handler registered for intent: ${intent}`
             }));
-            return;
         }
 
         try {
-            const result = await handler(ctx);
-            Bridge.send('finished', result);
+            return this.complete(await handler(ctx));
         } catch (e: unknown) {
-            Bridge.send('finished', this.fail({
+            return this.complete(this.fail({
                 reason: 'execution_error',
                 message: e instanceof Error ? e.message : String(e)
             }));
         }
+    }
+
+    /**
+     * Publishes a result to legacy hosts and returns it to the caller.
+     * Native hosts read the `_dispatch` return value instead, so the
+     * duplicate `finished` event is skipped.
+     */
+    private complete(result: SynapseResult): SynapseResult {
+        if (!Bridge.isNative()) {
+            Bridge.send('finished', result);
+        }
+        return result;
     }
 
     // =========================================================================
@@ -211,7 +227,7 @@ export class Synapse {
             connection: init?.connection
         };
 
-        const responseData = await Bridge.send('fetch', request, true);
+        const responseData = await Bridge.send<SynapseResponseData>('fetch', request, true);
         return new SynapseResponse(responseData);
     }
 
@@ -249,7 +265,7 @@ export class Synapse {
      * }
      */
     async prompt(spec: PromptSpec): Promise<PromptResult> {
-        return Bridge.send('prompt', spec, true);
+        return Bridge.send<PromptResult>('prompt', spec, true);
     }
 
     // =========================================================================
@@ -281,7 +297,7 @@ export class Synapse {
             confirmLabel?: string;
             cancelLabel?: string
         }): Promise<boolean> => {
-            return Bridge.send('ui_confirm', { message, ...options }, true);
+            return Bridge.send<boolean>('ui_confirm', { message, ...options }, true);
         }
     };
 
@@ -307,7 +323,7 @@ export class Synapse {
          * }
          */
         isAuthenticated: async (provider: string): Promise<boolean> => {
-            return Bridge.send('auth_check', { provider }, true);
+            return Bridge.send<boolean>('auth_check', { provider }, true);
         },
 
         /**
@@ -326,7 +342,7 @@ export class Synapse {
          * }
          */
         authenticate: async (provider: string): Promise<void> => {
-            return Bridge.send('auth_authenticate', { provider }, true);
+            return Bridge.send<void>('auth_authenticate', { provider }, true);
         },
 
         /**
@@ -350,11 +366,11 @@ export class Synapse {
      */
     connections = {
         isConnected: async (alias: string): Promise<boolean> => {
-            return Bridge.send('connection_check', { alias }, true);
+            return Bridge.send<boolean>('connection_check', { alias }, true);
         },
 
         connect: async (alias: string): Promise<void> => {
-            return Bridge.send('connection_connect', { alias }, true);
+            return Bridge.send<void>('connection_connect', { alias }, true);
         },
 
         disconnect: async (alias: string): Promise<void> => {
@@ -381,7 +397,7 @@ export class Synapse {
          * const defaultProject = await synapse.storage.get('defaultProject');
          */
         get: async <T extends StorageValue>(key: string): Promise<T | undefined> => {
-            return Bridge.send('storage_get', { key }, true);
+            return Bridge.send<T | undefined>('storage_get', { key }, true);
         },
 
         /**
@@ -435,7 +451,7 @@ export class Synapse {
          * const apiKey = await synapse.config.get('openai_api_key');
          */
         get: async (key: string): Promise<string | null> => {
-            return Bridge.send('config_get', { key }, true);
+            return Bridge.send<string | null>('config_get', { key }, true);
         },
 
         /**
@@ -498,7 +514,9 @@ export class Synapse {
             options?: McpCallOptions
         ): Promise<McpCallResult<TResponse>> => {
             try {
-                const response = await Bridge.send(
+                const response = await Bridge.send<
+                    McpCallResult<unknown> & { message?: string; isError?: boolean }
+                >(
                     'mcp_callTool',
                     {
                         serverName,
@@ -567,7 +585,7 @@ export class Synapse {
          * }
          */
         platform: async (): Promise<SynapsePlatform> => {
-            return Bridge.send('system_platform', {}, true);
+            return Bridge.send<SynapsePlatform>('system_platform', {}, true);
         },
 
         /**
@@ -580,7 +598,7 @@ export class Synapse {
          * await synapse.system.runShortcut('Save to Keep', 'Buy milk');
          */
         runShortcut: async (name: string, input?: string): Promise<void> => {
-            return Bridge.send('system_runShortcut', { name, input }, true);
+            return Bridge.send<void>('system_runShortcut', { name, input }, true);
         },
 
         /**
@@ -597,7 +615,7 @@ export class Synapse {
          * });
          */
         sendIntent: async (options: import('./types').IntentOptions): Promise<void> => {
-            return Bridge.send('system_sendIntent', options, true);
+            return Bridge.send<void>('system_sendIntent', options, true);
         },
 
         // =====================================================================
@@ -635,7 +653,7 @@ export class Synapse {
          * `);
          */
         runAppleScript: async (script: string, options?: AppleScriptOptions): Promise<string | null> => {
-            return Bridge.send('system_runAppleScript', {
+            return Bridge.send<string | null>('system_runAppleScript', {
                 script,
                 timeoutMs: options?.timeoutMs ?? 10000,
             }, true);
@@ -661,7 +679,7 @@ export class Synapse {
              * const work = calendars.find(c => c.title === 'Work');
              */
             getCalendars: async (): Promise<CalendarInfo[]> => {
-                return Bridge.send('system_calendar_getCalendars', {}, true);
+                return Bridge.send<CalendarInfo[]>('system_calendar_getCalendars', {}, true);
             },
 
             /**
@@ -677,7 +695,7 @@ export class Synapse {
              * });
              */
             getEvents: async (options: CalendarQueryOptions): Promise<CalendarEvent[]> => {
-                return Bridge.send('system_calendar_getEvents', options, true);
+                return Bridge.send<CalendarEvent[]>('system_calendar_getEvents', options, true);
             },
 
             /**
@@ -696,7 +714,7 @@ export class Synapse {
              * });
              */
             createEvent: async (event: CalendarEventParams): Promise<{ eventId: string }> => {
-                return Bridge.send('system_calendar_createEvent', event, true);
+                return Bridge.send<{ eventId: string }>('system_calendar_createEvent', event, true);
             },
         },
     };
@@ -722,7 +740,7 @@ export class Synapse {
      * });
      */
     async upload(params: UploadParams): Promise<UploadResult> {
-        return Bridge.send('upload', params, true);
+        return Bridge.send<UploadResult>('upload', params, true);
     }
 
     // =========================================================================

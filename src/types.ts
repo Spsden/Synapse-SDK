@@ -211,6 +211,34 @@ export interface BridgeMessage {
     payload?: any;
 }
 
+/**
+ * Envelope for the fjs-native host transport (protocol v2).
+ *
+ * fjs exposes one `fjs.bridge_call(value)` entry point whose Dart side
+ * receives the value verbatim and resolves the calling promise with its
+ * reply, so requests travel as a single structured object instead of the
+ * legacy channel + JSON-string pair.
+ */
+export interface SynapseBridgeEnvelope {
+    /** Envelope version. Hosts reject envelopes they do not understand. */
+    v: 2;
+    type: string;
+    payload?: unknown;
+}
+
+/**
+ * Structured failure a host returns inside a successful bridge reply, as
+ * `{ __synapseError: SynapseBridgeError }`. Carried in the value layer
+ * because transport-level errors are message-only.
+ */
+export interface SynapseBridgeError {
+    /** Stable machine-readable code, e.g. 'PERMISSION_DENIED'. */
+    code?: string;
+    message: string;
+    /** Whether retrying the same request could succeed later. */
+    retryable?: boolean;
+}
+
 // =============================================================================
 // Config Types
 // =============================================================================
