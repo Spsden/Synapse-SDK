@@ -390,7 +390,7 @@ function handleHostMessage(opts: {
             }
 
             // Provide a realistic simulated result for testing
-            const mockData = {
+            let mockData: any = {
                 id: 'mock-page-id-12345',
                 url: `https://${serverName}.com/mock-result`,
                 created: true,
@@ -398,6 +398,26 @@ function handleHostMessage(opts: {
                 tool: toolName,
                 arguments: toolArgs
             };
+
+            if (serverName === 'notion' && toolName === 'notion-search') {
+                const query = toolArgs?.query || 'General';
+                mockData = {
+                    results: [
+                        {
+                            id: 'db-meeting-notes-123',
+                            object: 'database',
+                            title: [{ plain_text: `${query} Notes` }],
+                            url: 'https://notion.so/db-meeting-notes-123'
+                        },
+                        {
+                            id: 'db-tasks-456',
+                            object: 'database',
+                            title: [{ plain_text: 'Action Items' }],
+                            url: 'https://notion.so/db-tasks-456'
+                        }
+                    ]
+                };
+            }
 
             resolveBridge({
                 success: true,
