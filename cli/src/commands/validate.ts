@@ -470,6 +470,11 @@ export function validateCodeAgainstManifest(
 ): void {
     const permissions = manifest.security?.permissions || [];
 
+    // Strip comments so commented-out examples don't trigger false warnings
+    const activeCode = code
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*$/gm, '');
+
     // 1. Check triggers
     const allTriggers = manifest.actions?.flatMap(a => a.triggers) || [];
     for (const trigger of allTriggers) {
@@ -482,7 +487,7 @@ export function validateCodeAgainstManifest(
     const connectionRegex = /connection\s*:\s*['"]([a-z0-9_-]+)['"]/g;
     let match: RegExpExecArray | null;
     const declaredConnections = new Set(manifest.connections?.map(c => c.alias) || []);
-    while ((match = connectionRegex.exec(code)) !== null) {
+    while ((match = connectionRegex.exec(activeCode)) !== null) {
         const alias = match[1];
         if (!declaredConnections.has(alias)) {
             warnings.push(`Connection alias "${alias}" used in plugin.js is not declared under manifest.connections.`);
@@ -492,7 +497,7 @@ export function validateCodeAgainstManifest(
     // 3. Check MCP calls
     const mcpRegex = /synapse\.mcp\.callTool\(\s*['"]([a-z0-9_-]+)['"]\s*,\s*['"]([a-z0-9_-]+)['"]/g;
     const declaredMcpServers = new Set(manifest.mcp?.servers?.map(s => s.id) || []);
-    while ((match = mcpRegex.exec(code)) !== null) {
+    while ((match = mcpRegex.exec(activeCode)) !== null) {
         const serverId = match[1];
         const toolName = match[2];
 
@@ -506,15 +511,15 @@ export function validateCodeAgainstManifest(
     }
 
     // 4. Check permissions
-    if (code.includes('synapse.fetch(') && !permissions.includes('network')) {
+    if (activeCode.includes('synapse.fetch(') && !permissions.includes('network')) {
         warnings.push(`plugin.js calls synapse.fetch() but "network" permission is not listed in manifest.security.permissions.`);
     }
 
-    if (code.includes('synapse.system.calendar') && !permissions.includes('calendar')) {
+    if (activeCode.includes('synapse.system.calendar') && !permissions.includes('calendar')) {
         warnings.push(`plugin.js calls calendar APIs but "calendar" permission is not listed in manifest.security.permissions.`);
     }
 
-    if (code.includes('synapse.system.runAppleScript') && !permissions.includes('applescript')) {
+    if (activeCode.includes('synapse.system.runAppleScript') && !permissions.includes('applescript')) {
         warnings.push(`plugin.js calls runAppleScript() but "applescript" permission is not listed in manifest.security.permissions.`);
     }
 }
