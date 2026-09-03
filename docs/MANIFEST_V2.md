@@ -5,27 +5,35 @@ Manifest v2 makes actions the unit of execution and permission review.
 Each action declares:
 
 - trigger names and input/output schemas
-- named user connections
-- MCP server IDs and exact tool allowlists
+- named user connections for direct OAuth/API-key integrations
+- package-owned hosted MCP servers and exact tool allowlists
 - host capabilities and network domains
 - supported platforms
 
-The plugin package does not declare how an MCP server is installed or hosted.
-At runtime, Synapse resolves each MCP `serverId` against the reviewed
-Marketplace registry and combines the registry deployment with the action
-allowlist.
+MCP is hosted-only. A package declares each remote HTTPS Streamable HTTP
+endpoint in `mcp.servers`; actions refer to it by `serverId` and list the only
+tools they may call. Synapse connects directly to that endpoint.
 
-The merge is intentionally one-way:
+For example:
 
-1. The plugin manifest supplies the action, connection alias, server ID, and
-   exact tool allowlist.
-2. The Marketplace registry supplies reviewed auth profiles, artifacts, and
-   platform deployments.
-3. The runtime selects a compatible deployment and enforces both allowlists.
+```json
+{
+  "mcp": {
+    "servers": [
+      {
+        "id": "notion",
+        "endpoint": "https://mcp.notion.com/mcp",
+        "authentication": "oauth"
+      }
+    ]
+  }
+}
+```
 
-Local developer commands are user configuration, not plugin package metadata.
-They are loaded by the desktop runtime through `MCP_DEVELOPER_CONFIG_PATH` and
-cannot be submitted as Marketplace deployments.
+Only hosted HTTPS MCP endpoints are accepted. Plugin packages cannot declare
+commands, environment variables, local sockets, stdio, or local/cloud routing.
+The host owns OAuth UI and secure token storage, so tokens are never exposed to
+plugin JavaScript.
 
 Plugins do not need MCP for every integration. Actions may use named OAuth or
 API-key connections, direct allowlisted network calls, and host capabilities
@@ -35,6 +43,5 @@ Manifest v2 is the only supported plugin contract. `manifestVersion` and
 `actions` are required. Legacy top-level `triggers`, `inputSchema`, `auth`, and
 `mcpServers` fields are rejected by both validation and packaging.
 
-The canonical example is
-[`plugins/notion`](../plugins/notion), which uses an MCP OAuth connection and
-the official hosted Notion MCP server.
+The canonical example is [`plugins/notion`](../plugins/notion), which declares
+the official hosted Notion MCP server and uses MCP OAuth.

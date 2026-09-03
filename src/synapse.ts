@@ -493,7 +493,7 @@ export class Synapse {
          * Internally, it uses try-catch. If a catastrophic execution, bridge, or network error occurs, it catches the error
          * and returns it as a wrapped success: false result so plugins can handle failures gracefully without crashing.
          * 
-         * @param serverName - Name of the MCP server as declared in manifest.json
+         * @param serverName - Package-local hosted MCP server ID from manifest.json
          * @param toolName - Name of the tool to execute
          * @param args - Arguments to pass to the tool (JSON-serializable)
          * @param options - Execution options (timeout, routing policy)

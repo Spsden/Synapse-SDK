@@ -11,14 +11,15 @@
     "allowedDomains": [],
     "permissions": ["mcp", "config"]
   },
-  "connections": [
-    {
-      "alias": "notion",
-      "provider": "notion",
-      "type": "mcp_oauth",
-      "scopes": []
-    }
-  ],
+  "mcp": {
+    "servers": [
+      {
+        "id": "notion",
+        "endpoint": "https://mcp.notion.com/mcp",
+        "authentication": "oauth"
+      }
+    ]
+  },
   "config": [
     {
       "key": "notion_parent_id",
@@ -62,12 +63,7 @@
       },
       "requirements": [
         {
-          "kind": "connection",
-          "alias": "notion"
-        },
-        {
           "kind": "mcp",
-          "alias": "notion",
           "serverId": "notion",
           "allow": {
             "tools": ["notion-create-pages"]

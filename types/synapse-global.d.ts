@@ -813,7 +813,7 @@ interface SynapseSDK {
          * back as `{ success: false, error, code }` so plugins can handle
          * them without try/catch gymnastics.
          *
-         * @param serverName - Server alias from the action's `mcp` requirement
+         * @param serverName - Package-local hosted MCP server ID from the action's `mcp` requirement
          * @param toolName - Tool to execute (must be in the declared allowlist)
          * @param args - JSON-serializable tool arguments
          * @param options - Execution options (timeout, routing policy)

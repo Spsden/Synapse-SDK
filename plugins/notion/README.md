@@ -2,9 +2,9 @@
 
 Canonical Synapse plugin for creating Notion pages through MCP.
 
-The package declares only user-facing actions, connection requirements, and
-the exact MCP tool allowlist. The Marketplace MCP registry independently
-supplies the reviewed Notion server transport and deployment metadata.
+The package declares Notion's hosted HTTPS MCP endpoint and the exact tool
+allowlist. Synapse establishes the MCP OAuth connection directly; no
+Marketplace MCP registry is involved.
 
 ## Build
 
@@ -17,7 +17,8 @@ node cli/dist/index.js package plugins/notion \
 
 ## Runtime contract
 
-- Connection alias: `notion`
-- MCP server alias and registry ID: `notion`
+- Hosted MCP endpoint: `https://mcp.notion.com/mcp`
+- MCP server ID: `notion`
+- Authentication: MCP OAuth
 - Allowed tools: `notion-create-pages`
 - Platforms: iOS, Android, macOS, Windows, Linux
