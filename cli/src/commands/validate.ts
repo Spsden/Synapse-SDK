@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { isIP } from 'net';
 import unzipper from 'unzipper';
 import { PluginManifest, PluginCategory, ValidationResult } from '../types';
 
@@ -223,7 +224,7 @@ export function validateManifest(manifest: PluginManifest, errors: string[], war
     }
 
     if (!manifest.security?.allowedDomains || manifest.security.allowedDomains.length === 0) {
-        warnings.push('No allowed domains specified - plugin cannot make network requests');
+        warnings.push('No allowed domains specified - plugin cannot make direct network requests');
     }
 
     // Named connections
@@ -251,6 +252,33 @@ export function validateManifest(manifest: PluginManifest, errors: string[], war
                 );
             }
         });
+    }
+
+    // Package-owned hosted MCP servers. There is intentionally no local,
+    // stdio, command, or cloud-routing alternative in this contract.
+    const hostedMcpServerIds = new Set<string>();
+    if (manifest.mcp) {
+        if (!Array.isArray(manifest.mcp.servers) || manifest.mcp.servers.length === 0) {
+            errors.push('manifest.mcp.servers must contain at least one hosted server');
+        } else {
+            manifest.mcp.servers.forEach((server, index) => {
+                const serverPath = `manifest.mcp.servers[${index}]`;
+                if (!server.id) {
+                    errors.push(`${serverPath}.id is required`);
+                } else if (!/^[a-z][a-z0-9-]*$/.test(server.id)) {
+                    errors.push(`${serverPath}.id must match ^[a-z][a-z0-9-]*$`);
+                } else if (hostedMcpServerIds.has(server.id)) {
+                    errors.push(`manifest.mcp.servers: duplicate id "${server.id}"`);
+                } else {
+                    hostedMcpServerIds.add(server.id);
+                }
+
+                validateHostedMcpEndpoint(server.endpoint, `${serverPath}.endpoint`, errors);
+                if (!['oauth', 'none'].includes(server.authentication)) {
+                    errors.push(`${serverPath}.authentication must be one of: oauth, none`);
+                }
+            });
+        }
     }
 
     // Config
@@ -327,15 +355,12 @@ export function validateManifest(manifest: PluginManifest, errors: string[], war
                     }
                 } else if (requirement.kind === 'mcp') {
                     hasMcpRequirement = true;
-                    if (!requirement.alias) {
-                        errors.push(`${reqPath}.alias is required`);
-                    } else if (!/^[a-z][a-z0-9-]*$/.test(requirement.alias)) {
-                        errors.push(`${reqPath}.alias must match ^[a-z][a-z0-9-]*$`);
-                    }
                     if (!requirement.serverId) {
                         errors.push(`${reqPath}.serverId is required`);
                     } else if (!/^[a-z][a-z0-9-]*$/.test(requirement.serverId)) {
                         errors.push(`${reqPath}.serverId must match ^[a-z][a-z0-9-]*$`);
+                    } else if (!hostedMcpServerIds.has(requirement.serverId)) {
+                        errors.push(`${reqPath}.serverId references unknown hosted server "${requirement.serverId}"`);
                     }
                     if (!requirement.allow?.tools?.length) {
                         errors.push(`${reqPath}.allow.tools must list at least one tool name`);
@@ -374,4 +399,54 @@ export function validateManifest(manifest: PluginManifest, errors: string[], war
             errors.push('manifest.keywords must have 10 items or less');
         }
     }
+}
+
+function validateHostedMcpEndpoint(endpoint: unknown, path: string, errors: string[]): void {
+    if (typeof endpoint !== 'string' || endpoint.trim().length === 0) {
+        errors.push(`${path} is required`);
+        return;
+    }
+
+    let url: URL;
+    try {
+        url = new URL(endpoint);
+    } catch {
+        errors.push(`${path} must be an absolute HTTPS URL`);
+        return;
+    }
+
+    if (url.protocol !== 'https:' || !url.hostname) {
+        errors.push(`${path} must be an absolute HTTPS URL`);
+    }
+    if (url.username || url.password || url.hash) {
+        errors.push(`${path} must not include credentials or a fragment`);
+    }
+    if (isLocalOrPrivateHost(url.hostname)) {
+        errors.push(`${path} must not target localhost or a private network`);
+    }
+}
+
+function isLocalOrPrivateHost(hostname: string): boolean {
+    const host = hostname.toLowerCase();
+    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) {
+        return true;
+    }
+
+    if (isIP(host) === 4) {
+        const [first, second] = host.split('.').map(Number);
+        return first === 10 ||
+            first === 127 ||
+            first === 0 ||
+            (first === 169 && second === 254) ||
+            (first === 172 && second >= 16 && second <= 31) ||
+            (first === 192 && second === 168);
+    }
+
+    if (isIP(host) === 6) {
+        return host === '::1' ||
+            host.startsWith('fc') ||
+            host.startsWith('fd') ||
+            host.startsWith('fe80:');
+    }
+    return false;
 }

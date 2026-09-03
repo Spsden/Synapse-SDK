@@ -532,8 +532,7 @@ export class Synapse {
                         toolName,
                         arguments: args || {},
                         options: {
-                            timeoutMs: options?.timeoutMs ?? 10000,
-                            routingPolicy: options?.routingPolicy ?? 'prefer-local'
+                            timeoutMs: options?.timeoutMs ?? 10000
                         }
                     },
                     true

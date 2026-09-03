@@ -430,8 +430,6 @@ interface AuthConfig {
 interface McpCallOptions {
     /** Timeout in milliseconds (default: 10000) */
     timeoutMs?: number;
-    /** Execution routing policy (default: 'prefer-local') */
-    routingPolicy?: 'prefer-local' | 'local-only' | 'cloud-only';
 }
 
 /** Wrapped response returned by `synapse.mcp.callTool()`. */

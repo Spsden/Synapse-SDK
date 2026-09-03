@@ -136,6 +136,38 @@
       },
       "uniqueItems": true
     },
+    "mcp": {
+      "type": "object",
+      "description": "Package-owned hosted MCP servers. Synapse supports only HTTPS Streamable HTTP endpoints.",
+      "required": ["servers"],
+      "properties": {
+        "servers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "endpoint", "authentication"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "endpoint": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https://"
+              },
+              "authentication": {
+                "type": "string",
+                "enum": ["oauth", "none"]
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "config": {
       "type": "array",
       "description": "User-configurable settings. The host auto-generates a settings UI from these definitions.",
@@ -235,13 +267,9 @@
                 },
                 {
                   "type": "object",
-                  "required": ["kind", "alias", "serverId", "allow"],
+                  "required": ["kind", "serverId", "allow"],
                   "properties": {
                     "kind": { "const": "mcp" },
-                    "alias": {
-                      "type": "string",
-                      "pattern": "^[a-z][a-z0-9-]*$"
-                    },
                     "serverId": {
                       "type": "string",
                       "pattern": "^[a-z][a-z0-9-]*$"

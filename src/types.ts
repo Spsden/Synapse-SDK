@@ -429,8 +429,6 @@ export interface CalendarEventParams {
 export interface McpCallOptions {
     /** Timeout in milliseconds (default: 10000) */
     timeoutMs?: number;
-    /** Execution routing policy */
-    routingPolicy?: 'prefer-local' | 'local-only' | 'cloud-only';
 }
 
 /**

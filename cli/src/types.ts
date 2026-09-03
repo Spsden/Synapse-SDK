@@ -6,11 +6,20 @@
 
 export type ConnectionType = 'oauth2' | 'api_key' | 'mcp_oauth' | 'none';
 
+/** A remote MCP server owned by the plugin package author. */
+export interface HostedMcpServer {
+    /** Package-local identifier used by actions and synapse.mcp.callTool(). */
+    id: string;
+    /** Absolute HTTPS Streamable HTTP MCP endpoint. */
+    endpoint: string;
+    /** Whether Synapse must establish an MCP OAuth connection first. */
+    authentication: 'oauth' | 'none';
+}
+
 export type PluginCapabilityRequirement =
     | { kind: 'connection'; alias: string }
     | {
         kind: 'mcp';
-        alias: string;
         serverId: string;
         allow: { tools: string[] };
         optional?: boolean;
@@ -52,6 +61,11 @@ export interface PluginManifest {
         scopes?: string[];
         optional?: boolean;
     }>;
+
+    /** Hosted-only MCP servers declared by this package. */
+    mcp?: {
+        servers: HostedMcpServer[];
+    };
 
     config?: Array<{
         key: string;
