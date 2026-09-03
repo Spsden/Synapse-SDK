@@ -25,25 +25,63 @@ var SynapseSDK = (() => {
   });
 
   // src/bridge.ts
-  var Bridge = class {
+  var BridgeError = class extends Error {
+    constructor(details) {
+      super(details.message);
+      this.name = "BridgeError";
+      this.code = details.code || "BRIDGE_ERROR";
+      this.retryable = Boolean(details.retryable);
+    }
+  };
+  function readBridgeError(response) {
+    if (response == null || typeof response !== "object") return void 0;
+    const details = response.__synapseError;
+    if (details == null || typeof details !== "object") return void 0;
+    const { code, message, retryable } = details;
+    if (typeof message !== "string" || message.length === 0) return void 0;
+    return {
+      code: typeof code === "string" ? code : "BRIDGE_ERROR",
+      message,
+      retryable: retryable === true
+    };
+  }
+  function captureNativeBridge() {
+    const runtime = globalThis.fjs;
+    if (runtime == null || typeof runtime.bridge_call !== "function") {
+      return null;
+    }
+    const call = runtime.bridge_call.bind(runtime);
+    try {
+      delete globalThis.fjs;
+    } catch {
+    }
+    return call;
+  }
+  var nativeBridge = captureNativeBridge();
+  var _Bridge = class _Bridge {
     /**
-     * Sends a message to the host (Flutter).
-     * If `expectResponse` is true, returns a Promise that resolves when Host replies.
+     * Whether the fjs-native request/response transport is active. When true,
+     * hosts read the `_dispatch` return value instead of a `finished` event.
      */
-    static send(type, payload = {}, expectResponse = false) {
-      const id = (this.requestIdCounter++).toString();
-      const message = { type, id, payload };
-      if (!expectResponse) {
-        this._postMessage(message);
-        return Promise.resolve();
-      }
-      return new Promise((resolve, reject) => {
-        this.pendingRequests.set(id, { resolve, reject });
-        this._postMessage(message);
-      });
+    static isNative() {
+      return nativeBridge !== null;
     }
     /**
-     * Called by the Host to resolve a pending request.
+     * Sends a message to the host (Flutter).
+     *
+     * If `expectResponse` is true, the promise resolves with the host reply
+     * or rejects with a {@link BridgeError}. Otherwise delivery is
+     * fire-and-forget and the reply (if any) is ignored.
+     *
+     * @param T Shape the caller expects from a responding host; the transport
+     * itself carries unvalidated host data, so treat results as trusted only
+     * as far as you trust the host build.
+     */
+    static send(type, payload = {}, expectResponse = false) {
+      return nativeBridge ? _Bridge.sendNative(nativeBridge, type, payload, expectResponse) : _Bridge.sendLegacy(type, payload, expectResponse);
+    }
+    /**
+     * Called by legacy hosts to resolve a pending request.
      * e.g. synapse._bridge.resolve('123', { status: 200, data: ... })
      */
     static handleResponse(id, response, error) {
@@ -54,12 +92,41 @@ var SynapseSDK = (() => {
       }
       this.pendingRequests.delete(id);
       if (error) {
-        handler.reject(new Error(error));
+        handler.reject(new BridgeError({ code: "HOST_ERROR", message: error }));
       } else {
         handler.resolve(response);
       }
     }
-    static _postMessage(message) {
+    static async sendNative(call, type, payload, expectResponse) {
+      const reply = call({ v: 2, type, payload });
+      if (!expectResponse) {
+        reply.catch(() => {
+        });
+        return void 0;
+      }
+      const response = await reply;
+      const details = readBridgeError(response);
+      if (details) throw new BridgeError(details);
+      return response;
+    }
+    static sendLegacy(type, payload, expectResponse) {
+      const id = (this.requestIdCounter++).toString();
+      const message = { type, id, payload };
+      if (!expectResponse) {
+        this.postMessage(message);
+        return Promise.resolve(void 0);
+      }
+      return new Promise((resolve, reject) => {
+        this.pendingRequests.set(id, {
+          // Unvalidated host reply: T is the caller's declared
+          // expectation of host data.
+          resolve: (value) => resolve(value),
+          reject
+        });
+        this.postMessage(message);
+      });
+    }
+    static postMessage(message) {
       if (typeof sendMessage === "function") {
         sendMessage("synapse", JSON.stringify(message));
       } else {
@@ -67,8 +134,9 @@ var SynapseSDK = (() => {
       }
     }
   };
-  Bridge.pendingRequests = /* @__PURE__ */ new Map();
-  Bridge.requestIdCounter = 0;
+  _Bridge.pendingRequests = /* @__PURE__ */ new Map();
+  _Bridge.requestIdCounter = 0;
+  var Bridge = _Bridge;
 
   // src/synapse.ts
   var SynapseResponse = class {
@@ -555,6 +623,12 @@ var SynapseSDK = (() => {
     }
     /**
      * Internal: Called by the host to dispatch an intent.
+     *
+     * Resolves with the handler's SynapseResult so fjs-native hosts can read
+     * the completion value of the awaited call directly. Legacy hosts listen
+     * for the `finished` bridge event instead, which is only emitted when the
+     * native transport is inactive.
+     *
      * @internal
      */
     async _dispatch(intent, params) {
@@ -566,21 +640,30 @@ var SynapseSDK = (() => {
         execution: params.execution
       };
       if (!handler) {
-        Bridge.send("finished", this.fail({
+        return this.complete(this.fail({
           reason: "not_implemented",
           message: `No handler registered for intent: ${intent}`
         }));
-        return;
       }
       try {
-        const result = await handler(ctx);
-        Bridge.send("finished", result);
+        return this.complete(await handler(ctx));
       } catch (e) {
-        Bridge.send("finished", this.fail({
+        return this.complete(this.fail({
           reason: "execution_error",
           message: e instanceof Error ? e.message : String(e)
         }));
       }
+    }
+    /**
+     * Publishes a result to legacy hosts and returns it to the caller.
+     * Native hosts read the `_dispatch` return value instead, so the
+     * duplicate `finished` event is skipped.
+     */
+    complete(result) {
+      if (!Bridge.isNative()) {
+        Bridge.send("finished", result);
+      }
+      return result;
     }
     // =========================================================================
     // Fetch API (Network)
