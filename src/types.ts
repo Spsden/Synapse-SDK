@@ -291,7 +291,6 @@ export type PluginCapabilityRequirement =
     | { kind: 'connection'; alias: string }
     | {
         kind: 'mcp';
-        alias: string;
         serverId: string;
         allow: { tools: string[] };
         optional?: boolean;
