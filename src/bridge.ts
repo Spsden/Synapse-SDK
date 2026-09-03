@@ -1,9 +1,4 @@
-import { BridgeMessage, SynapseBridgeEnvelope, SynapseBridgeError } from './types';
-
-// Legacy transport: global injected by flutter_js-era hosts.
-declare global {
-    function sendMessage(channel: string, message: string): void;
-}
+import { SynapseBridgeEnvelope, SynapseBridgeError } from './types';
 
 type NativeBridgeCall = (envelope: SynapseBridgeEnvelope) => Promise<unknown>;
 
@@ -48,8 +43,6 @@ function captureNativeBridge(): NativeBridgeCall | null {
     }
     // Bind before hiding the global: the runtime binding may need its
     // receiver, and only this module closure may talk to the host afterwards.
-    // The cast is unchecked because the runtime owns the injected binding's
-    // type; the typeof check above is the runtime guard.
     const call = (runtime as { bridge_call: NativeBridgeCall }).bridge_call
         .bind(runtime);
     try {
@@ -64,113 +57,41 @@ function captureNativeBridge(): NativeBridgeCall | null {
 const nativeBridge = captureNativeBridge();
 
 export class Bridge {
-    private static readonly pendingRequests = new Map<
-        string,
-        { resolve: (value: unknown) => void; reject: (error: Error) => void }
-    >();
-    private static requestIdCounter = 0;
-
     /**
-     * Whether the fjs-native request/response transport is active. When true,
-     * hosts read the `_dispatch` return value instead of a `finished` event.
+     * Whether the fjs-native request/response transport is active.
      */
     static isNative(): boolean {
         return nativeBridge !== null;
     }
 
     /**
-     * Sends a message to the host (Flutter).
+     * Sends a message to the host (Flutter) through the fjs native bridge.
      *
      * If `expectResponse` is true, the promise resolves with the host reply
      * or rejects with a {@link BridgeError}. Otherwise delivery is
      * fire-and-forget and the reply (if any) is ignored.
      *
-     * @param T Shape the caller expects from a responding host; the transport
-     * itself carries unvalidated host data, so treat results as trusted only
-     * as far as you trust the host build.
+     * @param T Shape the caller expects from a responding host.
      */
-    static send<T = unknown>(
+    static async send<T = unknown>(
         type: string,
         payload: unknown = {},
         expectResponse = false
     ): Promise<T> {
-        return nativeBridge
-            ? Bridge.sendNative(nativeBridge, type, payload, expectResponse)
-            : Bridge.sendLegacy(type, payload, expectResponse);
-    }
-
-    /**
-     * Called by legacy hosts to resolve a pending request.
-     * e.g. synapse._bridge.resolve('123', { status: 200, data: ... })
-     */
-    static handleResponse(id: string, response: unknown, error?: string) {
-        const handler = this.pendingRequests.get(id);
-        if (!handler) {
-            console.warn(`[SynapseBridge] No pending request found for ID: ${id}`);
-            return;
+        if (!nativeBridge) {
+            console.warn(`[SynapseBridge] No host bridge available for: ${type}`);
+            return undefined as T;
         }
 
-        this.pendingRequests.delete(id);
-
-        if (error) {
-            handler.reject(new BridgeError({ code: 'HOST_ERROR', message: error }));
-        } else {
-            handler.resolve(response);
-        }
-    }
-
-    private static async sendNative<T>(
-        call: NativeBridgeCall,
-        type: string,
-        payload: unknown,
-        expectResponse: boolean
-    ): Promise<T> {
-        const reply = call({ v: 2, type, payload });
+        const reply = nativeBridge({ v: 2, type, payload });
         if (!expectResponse) {
-            // Notifications still reach the host; its acknowledgement is
-            // irrelevant to the sender. Callers declared T but promised not
-            // to read it.
             reply.catch(() => {});
             return undefined as T;
         }
+
         const response = await reply;
         const details = readBridgeError(response);
         if (details) throw new BridgeError(details);
         return response as T;
-    }
-
-    private static sendLegacy<T>(
-        type: string,
-        payload: unknown,
-        expectResponse: boolean
-    ): Promise<T> {
-        const id = (this.requestIdCounter++).toString();
-        const message: BridgeMessage = { type, id, payload };
-
-        if (!expectResponse) {
-            this.postMessage(message);
-            return Promise.resolve(undefined as T);
-        }
-
-        // Executor form rather than Promise.withResolvers: this path also runs
-        // on flutter_js QuickJS builds that predate ES2024.
-        return new Promise<T>((resolve, reject) => {
-            this.pendingRequests.set(id, {
-                // Unvalidated host reply: T is the caller's declared
-                // expectation of host data.
-                resolve: (value) => resolve(value as T),
-                reject,
-            });
-            this.postMessage(message);
-        });
-    }
-
-    private static postMessage(message: BridgeMessage) {
-        // flutter_js-era hosts inject a global `sendMessage`.
-        if (typeof sendMessage === 'function') {
-            sendMessage('synapse', JSON.stringify(message));
-        } else {
-            console.warn('[SynapseBridge] Mock send:', message);
-        }
     }
 }

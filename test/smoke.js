@@ -83,95 +83,9 @@ const githubApi = (url) => {
 };
 
 
-// The mock host: answers bridge messages the way SynapseHost would.
-function makeHost(context, behavior) {
-    return (channel, msgStr) => {
-        const msg = JSON.parse(msgStr);
-        if (channel !== 'synapse') return;
-        const reply = (data) =>
-            vm.runInContext(
-                `synapse._bridge.resolve('${msg.id}', ${JSON.stringify(data)}, null)`,
-                context
-            );
-
-        switch (msg.type) {
-            case 'log':
-                return;
-            case 'fetch': {
-                const { url, method, body } = msg.payload;
-                state.fetchCalls.push({ url, method, body });
-                const responder = url.includes('api.spotify.com')
-                    ? spotifyApi
-                    : githubApi;
-                const found = responder(url);
-                reply({
-                    status: found.status,
-                    ok: found.status >= 200 && found.status < 300,
-                    statusText: found.status === 200 ? 'OK' : 'Error',
-                    headers: {},
-                    body: JSON.stringify(found.body),
-                });
-                return;
-            }
-            case 'connection_check':
-                return reply(true);
-            case 'connection_connect':
-                return reply(undefined);
-            case 'mcp_callTool': {
-                state.mcpCalls.push(msg.payload);
-                const call = msg.payload;
-                if (call.serverName === 'notion' && call.toolName === 'notion-create-pages') {
-                    reply({ success: true, data: { id: 'page-1', url: 'https://notion.so/page-1' } });
-                } else if (call.serverName === 'notion' && call.toolName === 'notion-search') {
-                    reply({
-                        success: true,
-                        data: {
-                            results: [
-                                { id: 'db-1', title: [{ plain_text: 'Meeting Notes' }], object: 'database', url: 'https://notion.so/db-1' }
-                            ]
-                        }
-                    });
-                } else {
-                    reply({ success: false, error: `No mock for ${call.serverName}.${call.toolName}` });
-                }
-                return;
-            }
-            case 'prompt': {
-                state.promptCalls.push(msg.payload);
-                const field = msg.payload.fields[0];
-                if (field.type === 'select') {
-                    reply({ cancelled: false, values: { [field.name]: field.options[0].value } });
-                } else {
-                    reply({ cancelled: false, values: { [field.name]: behavior.textAnswer } });
-                }
-                return;
-            }
-            case 'finished':
-                state.finishedResults.push(msg.payload);
-                behavior.onFinished(msg.payload);
-                return;
-            default:
-                reply(null);
-        }
-    };
-}
-
-function makeContext(behavior) {
-    const context = vm.createContext({
-        console: { log: () => {}, warn: () => {}, error: () => {} },
-        setTimeout,
-        clearTimeout,
-        JSON,
-    });
-    context.sendMessage = makeHost(context, behavior);
-    const sdk = fs.readFileSync(path.join(__dirname, '../dist/index.global.js'), 'utf8');
-    vm.runInContext(sdk, context);
-    return context;
-}
-
 // The mock fjs host: answers {v: 2, type, payload} envelopes the way the
 // fjs-native SynapseHost would, resolving the calling promise directly.
-function makeNativeHost(behavior) {
+function makeNativeHost(behavior = {}) {
     return (envelope) => {
         if (envelope == null || envelope.v !== 2 || typeof envelope.type !== 'string') {
             return Promise.resolve(null);
@@ -265,31 +179,18 @@ function run(name, fn) {
     return fn(() => {});
 }
 
-const waitFor = (getResult) => new Promise((resolve) => {
-    const start = Date.now();
-    const tick = () => {
-        const r = getResult();
-        if (r !== undefined) return resolve(r);
-        if (Date.now() - start > 4000) return resolve(undefined);
-        setTimeout(tick, 10);
-    };
-    tick();
-});
-
 (async () => {
     // --- Scenario 1: spotify plugin, chat surface -------------------------
     await run('spotify (chat): ambiguous search → prompt; playlist entity match', async (done) => {
         state.fetchCalls = []; state.promptCalls = []; state.addedUris = null; state.finishedResults = [];
-        let finished;
-        const context = makeContext({ onFinished: (r) => (finished = r) });
+        const context = makeNativeContext({});
         loadPlugin(context, 'plugins/spotify');
-        dispatch(context, 'add_to_playlist', {
+        const finished = await dispatch(context, 'add_to_playlist', {
             input: { type: 'text', text: 'test song' },
             llm: { intent: 'add_to_playlist', entities: { query: 'test song', playlist: 'road' } },
             execution: { surface: 'chat', capabilities: { prompt: true } },
         });
         if (finished && finished.status !== 'success') console.log('  finished payload:', JSON.stringify(finished));
-        finished = await waitFor(() => finished);
         assert('run completed', Boolean(finished));
         assert('succeeded', finished && finished.status === 'success');
         assert('prompt was used (chat surface)', state.promptCalls.length === 1 && state.promptCalls[0].fields[0].type === 'select');
@@ -303,17 +204,13 @@ const waitFor = (getResult) => new Promise((resolve) => {
     // --- Scenario 2: spotify plugin, host without prompt -------------------
     await run('spotify: no prompt capability → no interactive fallback', async (done) => {
         state.fetchCalls = []; state.promptCalls = []; state.addedUris = null; state.finishedResults = [];
-        let finished;
-        const context = makeContext({
-            onFinished: (r) => (finished = r),
-        });
+        const context = makeNativeContext({});
         loadPlugin(context, 'plugins/spotify');
-        dispatch(context, 'add_to_playlist', {
+        const finished = await dispatch(context, 'add_to_playlist', {
             input: { type: 'text', text: 'test song' },
             llm: { intent: 'add_to_playlist', entities: { query: 'test song' } },
             execution: { surface: 'chat' },
         });
-        finished = await waitFor(() => finished);
         assert('run completed', Boolean(finished));
         assert('failed closed without prompt capability', finished && finished.status === 'fail');
         assert('prompt never called without capability', state.promptCalls.length === 0);
@@ -324,18 +221,15 @@ const waitFor = (getResult) => new Promise((resolve) => {
     // --- Scenario 3: github plugin, chat surface --------------------------
     await run('github (chat): repo from URL, missing title → text prompt', async (done) => {
         state.fetchCalls = []; state.promptCalls = []; state.createdIssue = null; state.directRepoFetched = false; state.finishedResults = [];
-        let finished;
-        const context = makeContext({
+        const context = makeNativeContext({
             textAnswer: 'Smoke test title',
-            onFinished: (r) => (finished = r),
         });
         loadPlugin(context, 'plugins/github');
-        dispatch(context, 'file_github_issue', {
+        const finished = await dispatch(context, 'file_github_issue', {
             input: { type: 'url', url: 'https://github.com/owner/repo' },
             llm: { intent: 'file_github_issue', entities: {} },
             execution: { surface: 'chat', capabilities: { prompt: true } },
         });
-        finished = await waitFor(() => finished);
         assert('run completed', Boolean(finished));
         assert('succeeded', finished && finished.status === 'success');
         assert('repo resolved from shared URL', state.createdIssue !== null);
@@ -350,15 +244,13 @@ const waitFor = (getResult) => new Promise((resolve) => {
     // --- Scenario 4: notion plugin, MCP page creation ----------------------
     await run('notion: creates a page via the notion MCP server', async (done) => {
         state.fetchCalls = []; state.mcpCalls = []; state.finishedResults = [];
-        let finished;
-        const context = makeContext({ onFinished: (r) => (finished = r) });
+        const context = makeNativeContext({});
         loadPlugin(context, 'plugins/notion');
-        dispatch(context, 'add_to_notion', {
+        const finished = await dispatch(context, 'add_to_notion', {
             input: { type: 'text', text: 'Captured text' },
             llm: { intent: 'add_to_notion', entities: { title: 'Captured idea' } },
             execution: { surface: 'share' },
         });
-        finished = await waitFor(() => finished);
         assert('run completed', Boolean(finished));
         assert('succeeded', finished && finished.status === 'success');
         assert('called the notion MCP server once', state.mcpCalls.length === 1 && state.mcpCalls[0].serverName === 'notion');
@@ -366,22 +258,19 @@ const waitFor = (getResult) => new Promise((resolve) => {
         const page = state.mcpCalls[0] && state.mcpCalls[0].arguments.pages[0];
         assert('page title came from the entity', page && page.title === 'Captured idea');
         assert('page content fell back to shared text', page && page.content === 'Captured text');
-        assert('emitted exactly one completion result', state.finishedResults.length === 1);
         done(true);
     });
 
     // --- Scenario 5: notion plugin, MCP database search -------------------
     await run('notion: searches databases via the notion-search MCP tool', async (done) => {
         state.fetchCalls = []; state.mcpCalls = []; state.finishedResults = [];
-        let finished;
-        const context = makeContext({ onFinished: (r) => (finished = r) });
+        const context = makeNativeContext({});
         loadPlugin(context, 'plugins/notion');
-        dispatch(context, 'search_notion', {
+        const finished = await dispatch(context, 'search_notion', {
             input: { type: 'text', text: 'Meeting' },
             llm: { intent: 'search_notion', entities: { query: 'Meeting', filter: 'database' } },
             execution: { surface: 'chat' },
         });
-        finished = await waitFor(() => finished);
         assert('run completed', Boolean(finished));
         assert('succeeded', finished && finished.status === 'success');
         assert('called the notion MCP server once', state.mcpCalls.length === 1 && state.mcpCalls[0].serverName === 'notion');
@@ -389,25 +278,21 @@ const waitFor = (getResult) => new Promise((resolve) => {
         assert('queried with filter database', state.mcpCalls[0].arguments.filter && state.mcpCalls[0].arguments.filter.value === 'database');
         assert('returned database results', finished && finished.data && finished.data.count === 1);
         assert('extracted database title', finished.data.results[0].title === 'Meeting Notes');
-        assert('emitted exactly one completion result', state.finishedResults.length === 1);
         done(true);
     });
 
     // --- Scenario 6: failures complete once --------------------------------
     await run('spotify: validation failure emits one completion result', async (done) => {
         state.fetchCalls = []; state.finishedResults = [];
-        let finished;
-        const context = makeContext({ onFinished: (r) => (finished = r) });
+        const context = makeNativeContext({});
         loadPlugin(context, 'plugins/spotify');
-        dispatch(context, 'add_to_playlist', {
+        const finished = await dispatch(context, 'add_to_playlist', {
             input: { type: 'text' },
             llm: { intent: 'add_to_playlist', entities: {} },
             execution: { surface: 'share' },
         });
-        finished = await waitFor(() => finished);
         assert('run completed', Boolean(finished));
         assert('returned a failure result', finished && finished.status === 'fail');
-        assert('emitted exactly one completion result', state.finishedResults.length === 1);
         done(true);
     });
     // --- Scenario 7: fjs-native transport basics ---------------------------

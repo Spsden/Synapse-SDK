@@ -204,13 +204,6 @@ export interface UploadResult {
 // Internal Bridge Types
 // =============================================================================
 
-/** Internal message format for host communication */
-export interface BridgeMessage {
-    type: string;
-    id?: string;
-    payload?: any;
-}
-
 /**
  * Envelope for the fjs-native host transport (protocol v2).
  *

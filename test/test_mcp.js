@@ -10,39 +10,22 @@ let lastMessage = null;
 const sandbox = {
     console: console,
     setTimeout: setTimeout,
-    // Mock the flutter_js sendMessage
-    sendMessage: (channel, msgStr) => {
-        const msg = JSON.parse(msgStr);
-        lastMessage = msg;
+    // Mock the fjs bridge_call
+    fjs: {
+        bridge_call: async (envelope) => {
+            if (envelope.type === 'mcp_callTool') {
+                const { serverName, toolName } = envelope.payload;
+                console.log(`[Host] Received callTool request for: ${serverName}.${toolName}`);
 
-        // Simulate Host logic
-        if (msg.type === 'mcp_callTool') {
-            const { serverName, toolName, arguments: args, options } = msg.payload;
-            console.log(`[Host] Received callTool request for: ${serverName}.${toolName}`);
-            
-            // Success case simulation
-            if (toolName === 'get-success') {
-                setTimeout(() => {
-                    const response = { success: true, data: { song: 'Fly Me to the Moon' } };
-                    const code = `synapse._bridge.resolve('${msg.id}', ${JSON.stringify(response)})`;
-                    vm.runInContext(code, context);
-                }, 50);
+                if (toolName === 'get-success') {
+                    return { success: true, data: { song: 'Fly Me to the Moon' } };
+                } else if (toolName === 'get-tool-error') {
+                    return { success: false, error: 'Database connection failed', code: 'DB_ERROR' };
+                } else if (toolName === 'get-bridge-error') {
+                    return { __synapseError: { code: 'BRIDGE_ERROR', message: 'Bridge connection timeout' } };
+                }
             }
-            // Tool failure simulation
-            else if (toolName === 'get-tool-error') {
-                setTimeout(() => {
-                    const response = { success: false, error: 'Database connection failed', code: 'DB_ERROR' };
-                    const code = `synapse._bridge.resolve('${msg.id}', ${JSON.stringify(response)})`;
-                    vm.runInContext(code, context);
-                }, 50);
-            }
-            // Bridge rejection simulation
-            else if (toolName === 'get-bridge-error') {
-                setTimeout(() => {
-                    const code = `synapse._bridge.resolve('${msg.id}', null, 'Bridge connection timeout')`;
-                    vm.runInContext(code, context);
-                }, 50);
-            }
+            return null;
         }
     }
 };

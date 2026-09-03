@@ -81,11 +81,6 @@ export async function runPlugin(trigger: string, options: RunOptions = {}): Prom
     }
     console.log(`  ${chalk.gray('Surface:')}    ${options.surface || 'chat'}\n`);
 
-    let finishResolver: (res: RunResult) => void;
-    const finishPromise = new Promise<RunResult>((resolve) => {
-        finishResolver = resolve;
-    });
-
     // Create sandbox
     const sandbox: Record<string, any> = {
         console: {
@@ -112,50 +107,21 @@ export async function runPlugin(trigger: string, options: RunOptions = {}): Prom
         URL,
         URLSearchParams,
         fetch: globalThis.fetch,
-        // Host bridge implementation
-        sendMessage: (channel: string, messageStr: string) => {
-            let msg: { type: string; id?: string; payload?: any };
-            try {
-                msg = JSON.parse(messageStr);
-            } catch {
-                return;
+        // Host bridge implementation (fjs native transport)
+        fjs: {
+            bridge_call: async (envelope: any) => {
+                const type = envelope?.type;
+                const payload = envelope?.payload;
+                return await handleBridgeCall({
+                    type,
+                    payload,
+                    manifest,
+                    env,
+                    storage,
+                    calls,
+                    options,
+                });
             }
-
-            const { type, id, payload } = msg;
-
-            // Handle bridge message types
-            handleHostMessage({
-                type,
-                id,
-                payload,
-                context,
-                manifest,
-                env,
-                storage,
-                calls,
-                options,
-                onFinished: (resultPayload) => {
-                    completed = true;
-                    if (resultPayload?.status === 'success') {
-                        finalResult = {
-                            success: true,
-                            status: 'success',
-                            data: resultPayload.data,
-                            logs,
-                            calls
-                        };
-                    } else {
-                        finalResult = {
-                            success: false,
-                            status: 'fail',
-                            error: resultPayload?.error || resultPayload,
-                            logs,
-                            calls
-                        };
-                    }
-                    finishResolver(finalResult);
-                }
-            });
         }
     };
 
@@ -175,18 +141,36 @@ export async function runPlugin(trigger: string, options: RunOptions = {}): Prom
         const executionPromise = vm.runInContext(dispatchCode, context);
 
         let timeoutHandle: NodeJS.Timeout | undefined;
-        const timeoutPromise = new Promise<RunResult>((_, reject) => {
+        const timeoutPromise = new Promise<never>((_, reject) => {
             timeoutHandle = setTimeout(() => reject(new Error(`Execution timed out after ${timeoutMs}ms`)), timeoutMs);
         });
 
-        // Wait for either finished message or dispatch resolution
-        await Promise.race([
-            Promise.all([executionPromise, finishPromise]),
+        const dispatchResult = await Promise.race([
+            executionPromise,
             timeoutPromise
         ]);
 
         if (timeoutHandle) {
             clearTimeout(timeoutHandle);
+        }
+
+        completed = true;
+        if (dispatchResult?.status === 'success') {
+            finalResult = {
+                success: true,
+                status: 'success',
+                data: dispatchResult.data,
+                logs,
+                calls
+            };
+        } else {
+            finalResult = {
+                success: false,
+                status: 'fail',
+                error: dispatchResult?.error || dispatchResult,
+                logs,
+                calls
+            };
         }
     } catch (err: any) {
         if (!completed) {
@@ -230,44 +214,29 @@ export async function runPlugin(trigger: string, options: RunOptions = {}): Prom
 }
 
 /**
- * Handle incoming messages sent from plugin via sendMessage('synapse', json)
+ * Handle incoming bridge calls from the plugin via fjs.bridge_call
  */
-function handleHostMessage(opts: {
+async function handleBridgeCall(opts: {
     type: string;
-    id?: string;
     payload?: any;
-    context: vm.Context;
     manifest: PluginManifest;
     env: Record<string, string>;
     storage: Map<string, any>;
     calls: Array<{ type: string; details: any }>;
     options: RunOptions;
-    onFinished: (payload: any) => void;
-}) {
-    const { type, id, payload, context, manifest, env, storage, calls, options, onFinished } = opts;
+}): Promise<any> {
+    const { type, payload, manifest, env, storage, calls, options } = opts;
     calls.push({ type, details: payload });
-
-    // Resolve bridge asynchronously so Promise setup in SDK completes first
-    const resolveBridge = (response: any, error?: string) => {
-        if (!id) return;
-        setTimeout(() => {
-            const respStr = JSON.stringify(response ?? null);
-            const errStr = error ? JSON.stringify(error) : 'null';
-            const code = `synapse._bridge.resolve('${id}', ${respStr}, ${errStr})`;
-            vm.runInContext(code, context);
-        }, 0);
-    };
 
     switch (type) {
         case 'log': {
             const msg = payload?.message || JSON.stringify(payload);
             console.log(chalk.cyan(`  [log] ${msg}`));
-            break;
+            return undefined;
         }
 
         case 'finished': {
-            onFinished(payload);
-            break;
+            return undefined;
         }
 
         case 'connection_check': {
@@ -279,37 +248,31 @@ function handleHostMessage(opts: {
             if (options.verbose) {
                 console.log(chalk.gray(`  [connection] check("${alias}") -> ${isConnected} (configured: ${isConfigured})`));
             }
-            resolveBridge(isConnected);
-            break;
+            return isConnected;
         }
 
         case 'connection_connect': {
             const alias = payload?.alias;
             console.log(chalk.blue(`  [connection] connect("${alias}") established`));
-            resolveBridge(undefined);
-            break;
+            return undefined;
         }
 
         case 'connection_disconnect': {
             const alias = payload?.alias;
             console.log(chalk.gray(`  [connection] disconnect("${alias}")`));
-            resolveBridge(undefined);
-            break;
+            return undefined;
         }
 
         case 'auth_check': {
-            resolveBridge(true);
-            break;
+            return true;
         }
 
         case 'auth_authenticate': {
-            resolveBridge(true);
-            break;
+            return true;
         }
 
         case 'auth_logout': {
-            resolveBridge(undefined);
-            break;
+            return undefined;
         }
 
         case 'config_get': {
@@ -319,16 +282,14 @@ function handleHostMessage(opts: {
             if (options.verbose) {
                 console.log(chalk.gray(`  [config] get("${key}") -> ${JSON.stringify(val)}`));
             }
-            resolveBridge(val);
-            break;
+            return val;
         }
 
         case 'config_set': {
             const { key, value } = payload;
             env[`SYNAPSE_CONFIG_${key.toUpperCase()}`] = String(value);
             console.log(chalk.gray(`  [config] set("${key}") = ${JSON.stringify(value)}`));
-            resolveBridge(undefined);
-            break;
+            return undefined;
         }
 
         case 'fetch': {
@@ -347,37 +308,34 @@ function handleHostMessage(opts: {
                 }
             }
 
-            (async () => {
-                try {
-                    const fetchRes = await globalThis.fetch(url, {
-                        method,
-                        headers: fetchHeaders,
-                        body: body ? String(body) : undefined
-                    });
+            try {
+                const fetchRes = await globalThis.fetch(url, {
+                    method,
+                    headers: fetchHeaders,
+                    body: body ? String(body) : undefined
+                });
 
-                    const resText = await fetchRes.text();
-                    const resHeaders: Record<string, string> = {};
-                    fetchRes.headers.forEach((v, k) => { resHeaders[k] = v; });
+                const resText = await fetchRes.text();
+                const resHeaders: Record<string, string> = {};
+                fetchRes.headers.forEach((v, k) => { resHeaders[k] = v; });
 
-                    resolveBridge({
-                        status: fetchRes.status,
-                        ok: fetchRes.ok,
-                        statusText: fetchRes.statusText,
-                        headers: resHeaders,
-                        body: resText
-                    });
-                } catch (err: any) {
-                    console.log(chalk.red(`    Fetch network error: ${err.message}`));
-                    resolveBridge({
-                        status: 0,
-                        ok: false,
-                        statusText: err.message,
-                        headers: {},
-                        body: JSON.stringify({ error: err.message })
-                    });
-                }
-            })();
-            break;
+                return {
+                    status: fetchRes.status,
+                    ok: fetchRes.ok,
+                    statusText: fetchRes.statusText,
+                    headers: resHeaders,
+                    body: resText
+                };
+            } catch (err: any) {
+                console.log(chalk.red(`    Fetch network error: ${err.message}`));
+                return {
+                    status: 0,
+                    ok: false,
+                    statusText: err.message,
+                    headers: {},
+                    body: JSON.stringify({ error: err.message })
+                };
+            }
         }
 
         case 'mcp_callTool': {
@@ -419,11 +377,10 @@ function handleHostMessage(opts: {
                 };
             }
 
-            resolveBridge({
+            return {
                 success: true,
                 data: mockData
-            });
-            break;
+            };
         }
 
         case 'prompt': {
@@ -438,46 +395,43 @@ function handleHostMessage(opts: {
                     output: process.stdout
                 });
 
-                (async () => {
-                    for (const field of fields) {
-                        if (field.type === 'select' && field.options?.length) {
-                            console.log(chalk.gray(`    Options for "${field.label || field.name}":`));
-                            field.options.forEach((opt: any, idx: number) => {
-                                console.log(chalk.gray(`      [${idx + 1}] ${opt.label || opt.value} (${opt.value})`));
-                            });
+                for (const field of fields) {
+                    if (field.type === 'select' && field.options?.length) {
+                        console.log(chalk.gray(`    Options for "${field.label || field.name}":`));
+                        field.options.forEach((opt: any, idx: number) => {
+                            console.log(chalk.gray(`      [${idx + 1}] ${opt.label || opt.value} (${opt.value})`));
+                        });
 
-                            const ans = await new Promise<string>((res) => {
-                                rl.question(chalk.yellow(`    Select [1-${field.options.length}] (default: 1): `), (ans) => {
-                                    const num = parseInt(ans.trim(), 10);
-                                    if (!isNaN(num) && num >= 1 && num <= field.options.length) {
-                                        res(field.options[num - 1].value);
-                                    } else {
-                                        res(field.options[0].value);
-                                    }
-                                });
+                        const ans = await new Promise<string>((res) => {
+                            rl.question(chalk.yellow(`    Select [1-${field.options.length}] (default: 1): `), (ans) => {
+                                const num = parseInt(ans.trim(), 10);
+                                if (!isNaN(num) && num >= 1 && num <= field.options.length) {
+                                    res(field.options[num - 1].value);
+                                } else {
+                                    res(field.options[0].value);
+                                }
                             });
-                            answers[field.name] = ans;
-                        } else {
-                            const ans = await new Promise<string>((res) => {
-                                rl.question(chalk.yellow(`    ${field.label || field.name}${field.defaultValue ? ` [${field.defaultValue}]` : ''}: `), (ans) => {
-                                    res(ans.trim() || field.defaultValue || '');
-                                });
+                        });
+                        answers[field.name] = ans;
+                    } else {
+                        const ans = await new Promise<string>((res) => {
+                            rl.question(chalk.yellow(`    ${field.label || field.name}${field.defaultValue ? ` [${field.defaultValue}]` : ''}: `), (ans) => {
+                                res(ans.trim() || field.defaultValue || '');
                             });
-                            answers[field.name] = ans;
-                        }
+                        });
+                        answers[field.name] = ans;
                     }
-                    rl.close();
-                    console.log();
-                    resolveBridge({ cancelled: false, values: answers });
-                })();
+                }
+                rl.close();
+                console.log();
+                return { cancelled: false, values: answers };
             } else {
                 for (const field of fields) {
                     answers[field.name] = field.defaultValue || (field.options?.[0]?.value ?? 'test-value');
                 }
                 console.log(chalk.gray(`    (Non-interactive mode, using defaults: ${JSON.stringify(answers)})`));
-                resolveBridge({ cancelled: false, values: answers });
+                return { cancelled: false, values: answers };
             }
-            break;
         }
 
         case 'storage_get': {
@@ -486,57 +440,49 @@ function handleHostMessage(opts: {
             if (options.verbose) {
                 console.log(chalk.gray(`  [storage] get "${key}" -> ${JSON.stringify(val)}`));
             }
-            resolveBridge(val ?? null);
-            break;
+            return val ?? null;
         }
 
         case 'storage_set': {
             const { key, value } = payload;
             storage.set(key, value);
             console.log(chalk.gray(`  [storage] set "${key}" = ${JSON.stringify(value)}`));
-            resolveBridge(undefined);
-            break;
+            return undefined;
         }
 
         case 'storage_delete': {
             const key = payload?.key;
             storage.delete(key);
             console.log(chalk.gray(`  [storage] delete "${key}"`));
-            resolveBridge(undefined);
-            break;
+            return undefined;
         }
 
         case 'storage_clear': {
             storage.clear();
             console.log(chalk.gray(`  [storage] cleared`));
-            resolveBridge(undefined);
-            break;
+            return undefined;
         }
 
         case 'system_platform': {
             const plat = process.platform === 'darwin' ? 'macos' : (process.platform === 'win32' ? 'windows' : 'linux');
-            resolveBridge(plat);
-            break;
+            return plat;
         }
 
         case 'ui_toast': {
             console.log(chalk.cyan(`  [toast] ${payload?.message}`));
-            resolveBridge(undefined);
-            break;
+            return undefined;
         }
 
         case 'ui_confirm': {
             console.log(chalk.cyan(`  [ui] confirm() requested: "${payload?.message}" -> auto-answering true`));
-            resolveBridge(true);
-            break;
+            return true;
         }
 
         default: {
             if (options.verbose) {
                 console.log(chalk.gray(`  [bridge] unhandled message: ${type}`));
             }
-            resolveBridge(null);
-            break;
+            return null;
         }
     }
 }

@@ -297,7 +297,7 @@ interface SynapseContext {
 1. Add dependencies to `pubspec.yaml`:
 ```yaml
 dependencies:
-  flutter_js: ^0.8.5
+  fjs: ^3.2.0
   http: ^1.6.0
 ```
 

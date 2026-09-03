@@ -58,47 +58,28 @@ var SynapseSDK = (() => {
     return call;
   }
   var nativeBridge = captureNativeBridge();
-  var _Bridge = class _Bridge {
+  var Bridge = class {
     /**
-     * Whether the fjs-native request/response transport is active. When true,
-     * hosts read the `_dispatch` return value instead of a `finished` event.
+     * Whether the fjs-native request/response transport is active.
      */
     static isNative() {
       return nativeBridge !== null;
     }
     /**
-     * Sends a message to the host (Flutter).
+     * Sends a message to the host (Flutter) through the fjs native bridge.
      *
      * If `expectResponse` is true, the promise resolves with the host reply
      * or rejects with a {@link BridgeError}. Otherwise delivery is
      * fire-and-forget and the reply (if any) is ignored.
      *
-     * @param T Shape the caller expects from a responding host; the transport
-     * itself carries unvalidated host data, so treat results as trusted only
-     * as far as you trust the host build.
+     * @param T Shape the caller expects from a responding host.
      */
-    static send(type, payload = {}, expectResponse = false) {
-      return nativeBridge ? _Bridge.sendNative(nativeBridge, type, payload, expectResponse) : _Bridge.sendLegacy(type, payload, expectResponse);
-    }
-    /**
-     * Called by legacy hosts to resolve a pending request.
-     * e.g. synapse._bridge.resolve('123', { status: 200, data: ... })
-     */
-    static handleResponse(id, response, error) {
-      const handler = this.pendingRequests.get(id);
-      if (!handler) {
-        console.warn(`[SynapseBridge] No pending request found for ID: ${id}`);
-        return;
+    static async send(type, payload = {}, expectResponse = false) {
+      if (!nativeBridge) {
+        console.warn(`[SynapseBridge] No host bridge available for: ${type}`);
+        return void 0;
       }
-      this.pendingRequests.delete(id);
-      if (error) {
-        handler.reject(new BridgeError({ code: "HOST_ERROR", message: error }));
-      } else {
-        handler.resolve(response);
-      }
-    }
-    static async sendNative(call, type, payload, expectResponse) {
-      const reply = call({ v: 2, type, payload });
+      const reply = nativeBridge({ v: 2, type, payload });
       if (!expectResponse) {
         reply.catch(() => {
         });
@@ -109,34 +90,7 @@ var SynapseSDK = (() => {
       if (details) throw new BridgeError(details);
       return response;
     }
-    static sendLegacy(type, payload, expectResponse) {
-      const id = (this.requestIdCounter++).toString();
-      const message = { type, id, payload };
-      if (!expectResponse) {
-        this.postMessage(message);
-        return Promise.resolve(void 0);
-      }
-      return new Promise((resolve, reject) => {
-        this.pendingRequests.set(id, {
-          // Unvalidated host reply: T is the caller's declared
-          // expectation of host data.
-          resolve: (value) => resolve(value),
-          reject
-        });
-        this.postMessage(message);
-      });
-    }
-    static postMessage(message) {
-      if (typeof sendMessage === "function") {
-        sendMessage("synapse", JSON.stringify(message));
-      } else {
-        console.warn("[SynapseBridge] Mock send:", message);
-      }
-    }
   };
-  _Bridge.pendingRequests = /* @__PURE__ */ new Map();
-  _Bridge.requestIdCounter = 0;
-  var Bridge = _Bridge;
 
   // src/synapse.ts
   var SynapseResponse = class {
@@ -576,16 +530,6 @@ var SynapseSDK = (() => {
           }
         }
       };
-      // =========================================================================
-      // Internal Bridge
-      // =========================================================================
-      /**
-       * Internal bridge methods for host communication.
-       * @internal
-       */
-      this._bridge = {
-        resolve: (id, response, error) => Bridge.handleResponse(id, response, error)
-      };
     }
     // =========================================================================
     // Intent Registration
@@ -640,30 +584,20 @@ var SynapseSDK = (() => {
         execution: params.execution
       };
       if (!handler) {
-        return this.complete(this.fail({
+        return this.fail({
           reason: "not_implemented",
           message: `No handler registered for intent: ${intent}`
-        }));
+        });
       }
       try {
-        return this.complete(await handler(ctx));
+        const result = await handler(ctx);
+        return result ?? this.success();
       } catch (e) {
-        return this.complete(this.fail({
+        return this.fail({
           reason: "execution_error",
           message: e instanceof Error ? e.message : String(e)
-        }));
+        });
       }
-    }
-    /**
-     * Publishes a result to legacy hosts and returns it to the caller.
-     * Native hosts read the `_dispatch` return value instead, so the
-     * duplicate `finished` event is skipped.
-     */
-    complete(result) {
-      if (!Bridge.isNative()) {
-        Bridge.send("finished", result);
-      }
-      return result;
     }
     // =========================================================================
     // Fetch API (Network)

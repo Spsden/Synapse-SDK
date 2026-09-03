@@ -159,32 +159,21 @@ export class Synapse {
         };
 
         if (!handler) {
-            return this.complete(this.fail({
+            return this.fail({
                 reason: 'not_implemented',
                 message: `No handler registered for intent: ${intent}`
-            }));
+            });
         }
 
         try {
-            return this.complete(await handler(ctx));
+            const result = await handler(ctx);
+            return result ?? this.success();
         } catch (e: unknown) {
-            return this.complete(this.fail({
+            return this.fail({
                 reason: 'execution_error',
                 message: e instanceof Error ? e.message : String(e)
-            }));
+            });
         }
-    }
-
-    /**
-     * Publishes a result to legacy hosts and returns it to the caller.
-     * Native hosts read the `_dispatch` return value instead, so the
-     * duplicate `finished` event is skipped.
-     */
-    private complete(result: SynapseResult): SynapseResult {
-        if (!Bridge.isNative()) {
-            Bridge.send('finished', result);
-        }
-        return result;
     }
 
     // =========================================================================
@@ -787,19 +776,6 @@ export class Synapse {
             error: error.message
         };
     }
-
-    // =========================================================================
-    // Internal Bridge
-    // =========================================================================
-
-    /**
-     * Internal bridge methods for host communication.
-     * @internal
-     */
-    _bridge = {
-        resolve: (id: string, response: any, error?: string) =>
-            Bridge.handleResponse(id, response, error)
-    };
 }
 
 // =============================================================================
