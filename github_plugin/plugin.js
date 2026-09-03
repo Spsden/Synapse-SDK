@@ -10,17 +10,14 @@ async function createIssue(ctx) {
   synapse.log('GitHub: create_issue triggered');
 
   try {
-    // 1. Authenticate
-    if (!await synapse.auth.isAuthenticated('github')) {
-      synapse.log('GitHub: requesting login');
-      try {
-        await synapse.auth.authenticate('github');
-      } catch (e) {
-        return synapse.fail({
-          reason: 'auth_failed',
-          message: 'GitHub login was declined or failed.'
-        });
-      }
+    // 1. Connect (manifest v2 named connection)
+    try {
+      await ensureGitHubConnection();
+    } catch (e) {
+      return synapse.fail({
+        reason: 'auth_failed',
+        message: 'GitHub login was declined or failed.'
+      });
     }
 
     // 2. Resolve the repository (repo URL, owner/name entity, or search)
@@ -62,7 +59,7 @@ async function createIssue(ctx) {
       method: 'POST',
       headers: { ...GITHUB_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, body, labels }),
-      provider: 'github'
+      connection: 'github'
     });
 
     if (!res.ok) {
@@ -93,6 +90,15 @@ async function createIssue(ctx) {
 synapse.register('create_issue', createIssue);
 synapse.register('create_github_issue', createIssue);
 synapse.register('file_github_issue', createIssue);
+
+async function ensureGitHubConnection() {
+  if (await synapse.connections.isConnected('github')) return;
+  synapse.log('GitHub: requesting login');
+  await synapse.connections.connect('github');
+  if (!(await synapse.connections.isConnected('github'))) {
+    throw new Error('GitHub connection was not completed.');
+  }
+}
 
 // =============================================================================
 // Repository resolution
@@ -150,7 +156,7 @@ async function resolveRepo(ctx) {
 async function fetchRepo(fullName) {
   const res = await synapse.fetch(`${GITHUB_API}/repos/${fullName}`, {
     headers: GITHUB_HEADERS,
-    provider: 'github'
+    connection: 'github'
   });
   if (!res.ok) {
     return null;
@@ -162,7 +168,7 @@ async function fetchRepo(fullName) {
 async function fetchRepos() {
   const res = await synapse.fetch(
     `${GITHUB_API}/user/repos?sort=pushed&per_page=100`,
-    { headers: GITHUB_HEADERS, provider: 'github' }
+    { headers: GITHUB_HEADERS, connection: 'github' }
   );
   if (!res.ok) {
     throw new Error(`Failed to list repositories: ${res.statusText}`);

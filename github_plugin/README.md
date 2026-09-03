@@ -10,7 +10,8 @@ A Synapse plugin that creates an issue in one of your GitHub repositories.
 
 ## How it works
 
-1. Authenticates with GitHub (OAuth handled by the host).
+1. Connects to GitHub through the `github` named connection (OAuth
+   handled by the host).
 2. Resolves the repository from a shared `github.com/<owner>/<repo>` link,
    the `repo` entity (`owner/name` or bare name matched against your
    repositories), or by asking.
@@ -27,5 +28,6 @@ A Synapse plugin that creates an issue in one of your GitHub repositories.
 
 ## Setup
 
-Requires a GitHub OAuth provider named `github` configured in the host,
-with the `repo` scope declared in `manifest.json`.
+Requires a `github` connection (alias `github`, OAuth provider `github`,
+scope `repo`) declared in `manifest.json`. The host manages the token and
+injects it into `synapse.fetch()` calls made with `connection: 'github'`.

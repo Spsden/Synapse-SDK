@@ -1,39 +1,67 @@
 {
   "$schema": "../schemas/manifest.schema.json",
+  "manifestVersion": 2,
   "id": "com.github.create-issue",
   "name": "Create GitHub Issue",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Create an issue in one of your GitHub repositories",
   "author": "Synapse",
+  "minSynapseVersion": "1.0.0",
   "security": {
     "allowedDomains": ["api.github.com"],
     "permissions": ["network", "ui"]
   },
-  "auth": {
-    "type": "oauth2",
-    "provider": "github",
-    "scopes": ["repo"]
-  },
-  "triggers": ["create_issue", "create_github_issue", "file_github_issue"],
-  "inputSchema": {
-    "type": "object",
-    "properties": {
-      "repo": {
-        "type": "string",
-        "description": "Repository as owner/name (or bare name, matched against your repos)"
-      },
-      "title": {
-        "type": "string",
-        "description": "Issue title"
-      },
-      "body": {
-        "type": "string",
-        "description": "Issue body"
-      },
-      "labels": {
-        "type": "array",
-        "description": "Labels to apply"
-      }
+  "connections": [
+    {
+      "alias": "github",
+      "provider": "github",
+      "type": "oauth2",
+      "scopes": ["repo"]
     }
-  }
+  ],
+  "actions": [
+    {
+      "id": "create_issue",
+      "description": "Create an issue in one of your GitHub repositories.",
+      "triggers": ["create_issue", "create_github_issue", "file_github_issue"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repo": {
+            "type": "string",
+            "description": "Repository as owner/name (or bare name, matched against your repos)"
+          },
+          "title": {
+            "type": "string",
+            "description": "Issue title"
+          },
+          "body": {
+            "type": "string",
+            "description": "Issue body"
+          },
+          "labels": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Labels to apply"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string" },
+          "number": { "type": "number" },
+          "repo": { "type": "string" },
+          "link": { "type": "string" }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "github" },
+        { "kind": "network", "domains": ["api.github.com"] }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    }
+  ],
+  "categories": ["developer-tools"],
+  "keywords": ["github", "issues", "bug-tracker"]
 }
