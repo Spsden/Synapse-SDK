@@ -1,43 +1,69 @@
 # Synapse CLI
 
-The Synapse CLI tool helps developers create, package, and validate plugins for the Synapse ecosystem.
+The Synapse CLI tool helps developers create, run, test, validate, and package plugins for the Synapse ecosystem.
 
-## Installation
+## Quick Start
 
 ```bash
-# Install dependencies
+# From the repository root:
+cd cli
 npm install
-
-# Build the CLI
 npm run build
 
-# Link globally (optional)
+# Link globally (optional):
 npm link
 ```
 
-## Usage
+## Commands & Usage
 
-### Initialize a Plugin
+### 1. Initialize a Plugin (`synapse init`)
 
-Create a new plugin project with standard structure:
+Create a new plugin project pre-configured with full editor superpowers:
 
 ```bash
-# Create in current directory
-synapse init "My Plugin"
+# Using global command (if linked):
+synapse init "My Plugin" --dir ../plugins/my-plugin
 
-# Create in specific directory
-synapse init "My Plugin" --dir ./plugins/my-plugin
+# Or directly using node:
+node dist/index.js init "My Plugin" --dir ../plugins/my-plugin
 ```
 
-This creates:
-- `manifest.json` — Plugin metadata with `$schema` for autocomplete
-- `plugin.js` — Annotated starter code with SDK quick reference
-- `jsconfig.json` — Editor config for IntelliSense
-- `synapse-global.d.ts` — SDK type definitions (copied from SDK)
-- `README.md` — Plugin documentation
-- `.vscode/settings.json` — VS Code settings
+This scaffolds:
+- `.synapse/`
+  - `manifest.schema.json` — Local copy of the manifest schema for offline autocomplete
+  - `synapse-global.d.ts` — Full SDK type definitions with rich JSDoc and hover examples
+- `.vscode/`
+  - `settings.json` — Schema mapping for `manifest.json`, turns on type checking & quick suggestions
+  - `synapse.code-snippets` — Ready-to-use snippets (`syn-handler`, `syn-fetch`, `syn-prompt`, `syn-mcp`, etc.)
+- `manifest.json` — Manifest v2 pre-configured with `$schema: "./.synapse/manifest.schema.json"`
+- `plugin.js` — Annotated starter code with input validation and inline examples
+- `jsconfig.json` — Preconfigured for instant IntelliSense in pure JavaScript
+- `README.md` — Plugin documentation and quick cheat sheet
 
-### Authenticated Requests
+### 2. Test Locally Without an App (`synapse run` / `test`)
+
+Test your plugin logic instantly in a simulated Node.js sandbox:
+
+```bash
+# Run with simulated text input
+node dist/index.js run my_plugin --dir ../plugins/my-plugin --text "Sample input text"
+
+# Run with URL input
+node dist/index.js run my_plugin --dir ../plugins/my-plugin --url "https://example.com"
+
+# Run with custom entities
+node dist/index.js run my_plugin --dir ../plugins/my-plugin --text "Buy Milk" -e title="Buy Milk" -e priority=high
+
+# Run on a specific surface (chat or share)
+node dist/index.js run my_plugin --dir ../plugins/my-plugin --surface chat
+```
+
+#### Features:
+- **Interactive Prompts**: If your code calls `synapse.prompt()`, the CLI prompts you interactively in the terminal.
+- **Local Credentials via `.env`**: Put `SYNAPSE_CONNECTION_<ALIAS>=secret_token` or `SYNAPSE_CONFIG_<KEY>=value` in a `.env` file in your plugin folder, and `synapse run` will automatically inject them into `synapse.fetch()` and `synapse.config.get()`.
+- **Trace Output**: Visual colorized execution logs showing fetch calls, MCP tool invocations, storage operations, and the final `synapse.success` or `synapse.fail` result.
+
+### 3. Authenticated Requests
 
 Plugins should never access OAuth tokens directly. Use the `connection`
 option on `synapse.fetch` to have the host inject the Authorization header.
@@ -48,15 +74,9 @@ const res = await synapse.fetch('https://api.example.com/data', {
   method: 'GET',
   connection: 'my_connection'  // Alias declared in manifest.json
 });
-
-// Using legacy provider (deprecated)
-const res = await synapse.fetch('https://api.example.com/data', {
-  method: 'GET',
-  provider: 'notion'
-});
 ```
 
-### Package a Plugin
+### 4. Package a Plugin (`synapse package`)
 
 Bundle your plugin into a `.synx` file for distribution:
 

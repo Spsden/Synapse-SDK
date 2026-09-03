@@ -9,6 +9,64 @@ The **Synapse SDK** enables an extensible plugin architecture for the Synapse ap
 
 ---
 
+## 🚀 Developer Quick Start
+
+Build, test, and package Synapse plugins locally in under 2 minutes:
+
+### 1. Clone & Build CLI
+
+```bash
+git clone https://github.com/Spsden/Synapse-SDK.git
+cd Synapse-SDK/cli
+npm install
+npm run build
+```
+
+### 2. Scaffold a New Plugin Boilerplate
+
+```bash
+node dist/index.js init "My Plugin" --dir ../plugins/my-plugin
+```
+
+### 3. Open in Your Editor (VS Code / Cursor)
+
+```bash
+code ../plugins/my-plugin
+```
+
+The boilerplate comes with **in-editor superpowers** pre-configured:
+- **Instant Autocomplete & Hover Docs**: Type `synapse.` anywhere in `plugin.js` for full method signatures, parameter descriptions, and copy-pasteable examples.
+- **Offline Schema Autocomplete**: `manifest.json` is linked to a local schema (`.synapse/manifest.schema.json`)—get dropdown choices and live validation for triggers, permissions, connections, and hosted MCP servers.
+- **Smart Code Snippets**: Type `syn-` in `plugin.js` to insert pre-built code blocks:
+  - `syn-handler` → Intent handler with input extraction and error handling
+  - `syn-fetch` → Authenticated HTTP fetch with connection alias
+  - `syn-prompt` → Interactive user question
+  - `syn-mcp` → Hosted MCP tool call
+  - `syn-storage` / `syn-ui` → Persistent key-value storage and HTML sheets
+
+### 4. Test Your Plugin Locally (No App Required!)
+
+Run your plugin logic right from the terminal with simulated inputs:
+
+```bash
+node dist/index.js run my_plugin --dir ../plugins/my-plugin --text "Buy groceries for dinner"
+```
+
+- **Interactive Prompts**: If your code calls `synapse.prompt()`, the CLI prompts you interactively in the terminal.
+- **Local Credentials**: Create a `.env` in your plugin folder (e.g. `SYNAPSE_CONNECTION_NOTION=secret_...`) to test real API/MCP calls.
+
+### 5. Validate & Package
+
+```bash
+# Verify schema & cross-check plugin.js against manifest contracts
+node dist/index.js validate ../plugins/my-plugin
+
+# Package into a .synx bundle for the app
+node dist/index.js package ../plugins/my-plugin
+```
+
+---
+
 ## 📦 For Plugin Developers
 
 ### Installation
