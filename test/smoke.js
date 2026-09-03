@@ -1,7 +1,7 @@
 // Offline smoke test for the Synapse SDK prompt round-trip and the
 // Spotify/GitHub/Notion plugins. Runs dist/index.global.js in a vm with a mock
-// host: auth always succeeds, fetch returns canned API responses, and
-// prompt/ui_show simulate user answers.
+// host: connections always succeed, fetch returns canned API responses, MCP
+// tool calls return canned results, and prompt/ui_show simulate user answers.
 //
 //   node test/smoke.js
 
@@ -20,10 +20,10 @@ const state = {
     fetchCalls: [],
     promptCalls: [],
     uiShowCalls: [],
+    mcpCalls: [],
     addedUris: null,
     createdIssue: null,
     directRepoFetched: false,
-    notionPage: null,
     finishedResults: [],
 };
 
@@ -80,25 +80,6 @@ const githubApi = (url) => {
     return { status: 404, body: {} };
 };
 
-const notionApi = (url) => {
-    if (url.endsWith('/search')) {
-        return {
-            status: 200,
-            body: {
-                results: [{
-                    id: 'database-1',
-                    title: [{ plain_text: 'Ideas' }],
-                    properties: { Task: { type: 'title' } },
-                }],
-            },
-        };
-    }
-    if (url.endsWith('/pages')) {
-        state.notionPage = JSON.parse(state.fetchCalls.at(-1).body);
-        return { status: 200, body: { id: 'page-1', url: 'https://notion.so/page-1' } };
-    }
-    return { status: 404, body: {} };
-};
 
 // The mock host: answers bridge messages the way SynapseHost would.
 function makeHost(context, behavior) {
@@ -121,9 +102,7 @@ function makeHost(context, behavior) {
                 state.fetchCalls.push({ url, method, body });
                 const responder = url.includes('api.spotify.com')
                     ? spotifyApi
-                    : url.includes('api.notion.com')
-                        ? notionApi
-                        : githubApi;
+                    : githubApi;
                 const found = responder(url);
                 reply({
                     status: found.status,
@@ -132,6 +111,20 @@ function makeHost(context, behavior) {
                     headers: {},
                     body: JSON.stringify(found.body),
                 });
+                return;
+            }
+            case 'connection_check':
+                return reply(true);
+            case 'connection_connect':
+                return reply(undefined);
+            case 'mcp_callTool': {
+                state.mcpCalls.push(msg.payload);
+                const call = msg.payload;
+                if (call.serverName === 'notion' && call.toolName === 'notion-create-pages') {
+                    reply({ success: true, data: { id: 'page-1', url: 'https://notion.so/page-1' } });
+                } else {
+                    reply({ success: false, error: `No mock for ${call.serverName}.${call.toolName}` });
+                }
                 return;
             }
             case 'prompt': {
@@ -275,12 +268,12 @@ const waitFor = (getResult) => new Promise((resolve) => {
         done(true);
     });
 
-    // --- Scenario 4: notion plugin, custom database title property --------
-    await run('notion: creates a page with the database title property', async (done) => {
-        state.fetchCalls = []; state.notionPage = null; state.finishedResults = [];
+    // --- Scenario 4: notion plugin, MCP page creation ----------------------
+    await run('notion: creates a page via the notion MCP server', async (done) => {
+        state.fetchCalls = []; state.mcpCalls = []; state.finishedResults = [];
         let finished;
         const context = makeContext({ onFinished: (r) => (finished = r) });
-        loadPlugin(context, 'notion_plugin');
+        loadPlugin(context, 'plugins/notion');
         dispatch(context, 'add_to_notion', {
             input: { type: 'text', text: 'Captured text' },
             llm: { intent: 'add_to_notion', entities: { title: 'Captured idea' } },
@@ -289,7 +282,12 @@ const waitFor = (getResult) => new Promise((resolve) => {
         finished = await waitFor(() => finished);
         assert('run completed', Boolean(finished));
         assert('succeeded', finished && finished.status === 'success');
-        assert('uses the database title property', state.notionPage && state.notionPage.properties.Task.title[0].text.content === 'Captured idea');
+        assert('called the notion MCP server once', state.mcpCalls.length === 1 && state.mcpCalls[0].serverName === 'notion');
+        assert('used the allowlisted tool', state.mcpCalls[0] && state.mcpCalls[0].toolName === 'notion-create-pages');
+        const page = state.mcpCalls[0] && state.mcpCalls[0].arguments.pages[0];
+        assert('page title came from the entity', page && page.title === 'Captured idea');
+        assert('page content fell back to shared text', page && page.content === 'Captured text');
+        assert('emitted exactly one completion result', state.finishedResults.length === 1);
         done(true);
     });
 
