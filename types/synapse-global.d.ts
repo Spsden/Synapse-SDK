@@ -423,6 +423,30 @@ interface AuthConfig {
 }
 
 // =============================================================================
+// MCP Types
+// =============================================================================
+
+/** Options for `synapse.mcp.callTool()`. */
+interface McpCallOptions {
+    /** Timeout in milliseconds (default: 10000) */
+    timeoutMs?: number;
+    /** Execution routing policy (default: 'prefer-local') */
+    routingPolicy?: 'prefer-local' | 'local-only' | 'cloud-only';
+}
+
+/** Wrapped response returned by `synapse.mcp.callTool()`. */
+interface McpCallResult<T = any> {
+    /** True if the tool executed successfully and returned data */
+    success: boolean;
+    /** Output payload returned from the tool (if successful) */
+    data?: T;
+    /** User-friendly error message if failed */
+    error?: string;
+    /** System error code (if failed) */
+    code?: string;
+}
+
+// =============================================================================
 // Synapse SDK Class (Global)
 // =============================================================================
 
@@ -773,6 +797,50 @@ interface SynapseSDK {
     };
 
     // =========================================================================
+    // MCP Namespace
+    // =========================================================================
+
+    /**
+     * Model Context Protocol (MCP) utilities.
+     *
+     * Call tools on MCP servers managed by the host. Servers are resolved from
+     * manifest v2 `mcp` action requirements; the host enforces the exact tool
+     * allowlist declared there.
+     */
+    mcp: {
+        /**
+         * Call a tool on a registered MCP server.
+         *
+         * Failures are returned, not thrown: bridge and execution errors come
+         * back as `{ success: false, error, code }` so plugins can handle
+         * them without try/catch gymnastics.
+         *
+         * @param serverName - Server alias from the action's `mcp` requirement
+         * @param toolName - Tool to execute (must be in the declared allowlist)
+         * @param args - JSON-serializable tool arguments
+         * @param options - Execution options (timeout, routing policy)
+         * @returns Promise resolving to a wrapped McpCallResult
+         *
+         * @example
+         * const result = await synapse.mcp.callTool(
+         *   'notion',
+         *   'notion-create-pages',
+         *   { pages: [{ title: 'New idea' }] },
+         *   { timeoutMs: 20000 }
+         * );
+         * if (result.success) {
+         *   synapse.log(`Created: ${JSON.stringify(result.data)}`);
+         * }
+         */
+        callTool<TResponse = any, TArgs extends Record<string, any> = Record<string, any>>(
+            serverName: string,
+            toolName: string,
+            args?: TArgs,
+            options?: McpCallOptions
+        ): Promise<McpCallResult<TResponse>>;
+    };
+
+    // =========================================================================
     // System Namespace
     // =========================================================================
 
@@ -912,6 +980,8 @@ declare global {
      * - **Questions**: `synapse.prompt()` (chat or UI, host decides)
      * - **UI**: `synapse.ui.show()`, `synapse.ui.toast()`, `synapse.ui.confirm()`
      * - **Auth**: `synapse.auth.authenticate()`, `synapse.auth.isAuthenticated()`
+     * - **Connections**: `synapse.connections.connect()`, `synapse.connections.isConnected()`
+     * - **MCP**: `synapse.mcp.callTool()` (host-managed servers, declared allowlists)
      * - **Storage**: `synapse.storage.get()`, `synapse.storage.set()`
      * - **Config**: `synapse.config.get()`, `synapse.config.set()`
      * - **System**: `synapse.system.platform()`, `synapse.system.calendar.*`, etc.
