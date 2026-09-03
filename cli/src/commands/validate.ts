@@ -2,7 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import unzipper from 'unzipper';
-import { PluginManifest, ValidationResult } from '../types';
+import { PluginManifest, PluginCategory, ValidationResult } from '../types';
+
+const VALID_CATEGORIES: PluginCategory[] = [
+    'productivity', 'communication', 'developer-tools', 'social',
+    'media', 'utilities', 'finance', 'health', 'education', 'entertainment'
+];
 
 /**
  * Validate a .synx package or plugin directory
@@ -150,18 +155,20 @@ async function validateSynxFile(filePath: string): Promise<ValidationResult> {
 }
 
 /**
- * Validate manifest fields
+ * Validate manifest fields against schemas/manifest.schema.json
  */
 export function validateManifest(manifest: PluginManifest, errors: string[], warnings: string[]): void {
     // Required fields
     if (!manifest.id) {
         errors.push('manifest.id is required');
-    } else if (!/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/.test(manifest.id)) {
+    } else if (!/^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$/.test(manifest.id)) {
         errors.push('manifest.id must be in reverse domain notation (e.g., com.author.plugin)');
     }
 
     if (!manifest.name) {
         errors.push('manifest.name is required');
+    } else if (manifest.name.length > 50) {
+        errors.push('manifest.name must be 50 characters or less');
     }
 
     if (!manifest.version) {
@@ -177,6 +184,7 @@ export function validateManifest(manifest: PluginManifest, errors: string[], war
         errors.push('manifest.actions must have at least one action');
     }
 
+    // Legacy v1 field detection
     const rawManifest = manifest as unknown as Record<string, unknown>;
     for (const legacyField of ['triggers', 'inputSchema', 'auth', 'mcpServers']) {
         if (Object.prototype.hasOwnProperty.call(rawManifest, legacyField)) {
@@ -184,12 +192,38 @@ export function validateManifest(manifest: PluginManifest, errors: string[], war
         }
     }
 
-    // Optional but recommended
+    // Optional fields validation
     if (!manifest.description) {
         warnings.push('manifest.description is recommended');
+    } else if (manifest.description.length > 200) {
+        errors.push('manifest.description must be 200 characters or less');
     }
+
     if (!manifest.author) {
         warnings.push('manifest.author is recommended');
+    }
+
+    if (manifest.authorUrl && !/^https?:\/\/.+/.test(manifest.authorUrl)) {
+        errors.push('manifest.authorUrl must be a valid URI');
+    }
+
+    if (manifest.homepage && !/^https?:\/\/.+/.test(manifest.homepage)) {
+        errors.push('manifest.homepage must be a valid URI');
+    }
+
+    if (manifest.minSynapseVersion && !/^\d+\.\d+\.\d+$/.test(manifest.minSynapseVersion)) {
+        errors.push('manifest.minSynapseVersion must be in semver format (x.y.z)');
+    }
+
+    // Security
+    if (manifest.security) {
+        if (manifest.security.allowedApps && !manifest.security.permissions?.includes('applescript')) {
+            warnings.push('manifest.security.allowedApps is specified but "applescript" permission is not included');
+        }
+    }
+
+    if (!manifest.security?.allowedDomains || manifest.security.allowedDomains.length === 0) {
+        warnings.push('No allowed domains specified - plugin cannot make network requests');
     }
 
     // Named connections
@@ -198,13 +232,18 @@ export function validateManifest(manifest: PluginManifest, errors: string[], war
         manifest.connections.forEach((connection, index) => {
             if (!connection.alias) {
                 errors.push(`manifest.connections[${index}].alias is required`);
+            } else if (!/^[a-z][a-z0-9_-]*$/.test(connection.alias)) {
+                errors.push(`manifest.connections[${index}].alias must match ^[a-z][a-z0-9_-]*$`);
             } else if (connectionAliases.has(connection.alias)) {
                 errors.push(`manifest.connections: duplicate alias "${connection.alias}"`);
+
             } else {
                 connectionAliases.add(connection.alias);
             }
             if (!connection.provider) {
                 errors.push(`manifest.connections[${index}].provider is required`);
+            } else if (!/^[a-z][a-z0-9_-]*$/.test(connection.provider)) {
+                errors.push(`manifest.connections[${index}].provider must match ^[a-z][a-z0-9_-]*$`);
             }
             if (!['oauth2', 'api_key', 'mcp_oauth', 'none'].includes(connection.type)) {
                 errors.push(
@@ -214,66 +253,17 @@ export function validateManifest(manifest: PluginManifest, errors: string[], war
         });
     }
 
-    if (manifest.actions) {
-        const actionIds = new Set<string>();
-        const actionTriggers = new Set<string>();
-        let hasMcpRequirement = false;
-
-        manifest.actions.forEach((action, actionIndex) => {
-            if (!action.id) {
-                errors.push(`manifest.actions[${actionIndex}].id is required`);
-            } else if (actionIds.has(action.id)) {
-                errors.push(`manifest.actions: duplicate action id "${action.id}"`);
-            } else {
-                actionIds.add(action.id);
-            }
-
-            if (!action.triggers || action.triggers.length === 0) {
-                errors.push(`manifest.actions[${actionIndex}].triggers must list at least one trigger`);
-            } else {
-                action.triggers.forEach((trigger) => {
-                    if (actionTriggers.has(trigger)) {
-                        errors.push(`manifest.actions: trigger "${trigger}" is assigned more than once`);
-                    }
-                    actionTriggers.add(trigger);
-                });
-            }
-
-            action.requirements?.forEach((requirement, requirementIndex) => {
-                const path = `manifest.actions[${actionIndex}].requirements[${requirementIndex}]`;
-                if (requirement.kind === 'connection') {
-                    if (!connectionAliases.has(requirement.alias)) {
-                        errors.push(`${path} references unknown connection alias "${requirement.alias}"`);
-                    }
-                } else if (requirement.kind === 'mcp') {
-                    hasMcpRequirement = true;
-                    if (!requirement.allow?.tools?.length) {
-                        errors.push(`${path}.allow.tools must list at least one tool name`);
-                    }
-                } else if (requirement.kind === 'host') {
-                    if (!requirement.capability) {
-                        errors.push(`${path}.capability is required`);
-                    }
-                } else if (requirement.kind === 'network') {
-                    if (!requirement.domains?.length) {
-                        errors.push(`${path}.domains must list at least one domain`);
-                    }
-                }
-            });
-        });
-
-        if (hasMcpRequirement && !manifest.security?.permissions?.includes('mcp')) {
-            errors.push('manifest.actions declares an MCP requirement but security.permissions does not include "mcp"');
-        }
-    }
-
     // Config
     if (manifest.config) {
         if (!Array.isArray(manifest.config)) {
             errors.push('manifest.config must be an array');
         } else {
             manifest.config.forEach((field, index) => {
-                if (!field.key) errors.push(`manifest.config[${index}].key is required`);
+                if (!field.key) {
+                    errors.push(`manifest.config[${index}].key is required`);
+                } else if (!/^[a-z_][a-z0-9_]*$/.test(field.key)) {
+                    errors.push(`manifest.config[${index}].key must match ^[a-z_][a-z0-9_]*$`);
+                }
                 if (!field.label) errors.push(`manifest.config[${index}].label is required`);
                 if (!['text', 'password', 'number', 'boolean', 'select'].includes(field.type)) {
                     errors.push(`manifest.config[${index}].type must be one of: text, password, number, boolean, select`);
@@ -285,9 +275,103 @@ export function validateManifest(manifest: PluginManifest, errors: string[], war
         }
     }
 
-    // Security
-    if (!manifest.security?.allowedDomains || manifest.security.allowedDomains.length === 0) {
-        warnings.push('No allowed domains specified - plugin cannot make network requests');
+    // Actions
+    if (manifest.actions) {
+        const actionIds = new Set<string>();
+        const actionTriggers = new Set<string>();
+        let hasMcpRequirement = false;
+
+        manifest.actions.forEach((action, actionIndex) => {
+            if (!action.id) {
+                errors.push(`manifest.actions[${actionIndex}].id is required`);
+            } else if (!/^[a-z][a-z0-9_]*$/.test(action.id)) {
+                errors.push(`manifest.actions[${actionIndex}].id must match ^[a-z][a-z0-9_]*$`);
+            } else if (actionIds.has(action.id)) {
+                errors.push(`manifest.actions: duplicate action id "${action.id}"`);
+            } else {
+                actionIds.add(action.id);
+            }
+
+            if (!action.triggers || action.triggers.length === 0) {
+                errors.push(`manifest.actions[${actionIndex}].triggers must list at least one trigger`);
+            } else {
+                action.triggers.forEach((trigger) => {
+                    if (!/^[a-z][a-z0-9_]*$/.test(trigger)) {
+                        errors.push(`manifest.actions[${actionIndex}]: trigger "${trigger}" must match ^[a-z][a-z0-9_]*$`);
+                    }
+                    if (actionTriggers.has(trigger)) {
+                        errors.push(`manifest.actions: trigger "${trigger}" is assigned more than once`);
+                    }
+                    actionTriggers.add(trigger);
+                });
+            }
+
+            // Validate platforms
+            if (action.platforms) {
+                const validPlatforms = ['ios', 'android', 'macos', 'windows', 'linux', 'web'];
+                action.platforms.forEach((platform) => {
+                    if (!validPlatforms.includes(platform)) {
+                        errors.push(`manifest.actions[${actionIndex}]: invalid platform "${platform}"`);
+                    }
+                });
+            }
+
+            // Validate requirements
+            action.requirements?.forEach((requirement, requirementIndex) => {
+                const reqPath = `manifest.actions[${actionIndex}].requirements[${requirementIndex}]`;
+                if (requirement.kind === 'connection') {
+                    if (!requirement.alias) {
+                        errors.push(`${reqPath}.alias is required`);
+                    } else if (!connectionAliases.has(requirement.alias)) {
+                        errors.push(`${reqPath} references unknown connection alias "${requirement.alias}"`);
+                    }
+                } else if (requirement.kind === 'mcp') {
+                    hasMcpRequirement = true;
+                    if (!requirement.alias) {
+                        errors.push(`${reqPath}.alias is required`);
+                    } else if (!/^[a-z][a-z0-9-]*$/.test(requirement.alias)) {
+                        errors.push(`${reqPath}.alias must match ^[a-z][a-z0-9-]*$`);
+                    }
+                    if (!requirement.serverId) {
+                        errors.push(`${reqPath}.serverId is required`);
+                    } else if (!/^[a-z][a-z0-9-]*$/.test(requirement.serverId)) {
+                        errors.push(`${reqPath}.serverId must match ^[a-z][a-z0-9-]*$`);
+                    }
+                    if (!requirement.allow?.tools?.length) {
+                        errors.push(`${reqPath}.allow.tools must list at least one tool name`);
+                    }
+                } else if (requirement.kind === 'host') {
+                    if (!requirement.capability) {
+                        errors.push(`${reqPath}.capability is required`);
+                    } else if (!/^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$/.test(requirement.capability)) {
+                        errors.push(`${reqPath}.capability must be in reverse domain notation`);
+                    }
+                } else if (requirement.kind === 'network') {
+                    if (!requirement.domains?.length) {
+                        errors.push(`${reqPath}.domains must list at least one domain`);
+                    }
+                }
+            });
+        });
+
+        if (hasMcpRequirement && !manifest.security?.permissions?.includes('mcp')) {
+            errors.push('manifest.actions declares an MCP requirement but security.permissions does not include "mcp"');
+        }
     }
 
+    // Categories
+    if (manifest.categories) {
+        manifest.categories.forEach((category) => {
+            if (!VALID_CATEGORIES.includes(category)) {
+                errors.push(`manifest.categories: invalid category "${category}"`);
+            }
+        });
+    }
+
+    // Keywords
+    if (manifest.keywords) {
+        if (manifest.keywords.length > 10) {
+            errors.push('manifest.keywords must have 10 items or less');
+        }
+    }
 }

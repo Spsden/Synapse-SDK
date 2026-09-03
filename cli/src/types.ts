@@ -1,6 +1,29 @@
 /**
  * Manifest schema for Synapse plugins
+ *
+ * Mirrors schemas/manifest.schema.json and src/types.ts.
  */
+
+export type ConnectionType = 'oauth2' | 'api_key' | 'mcp_oauth' | 'none';
+
+export type PluginCapabilityRequirement =
+    | { kind: 'connection'; alias: string }
+    | {
+        kind: 'mcp';
+        alias: string;
+        serverId: string;
+        allow: { tools: string[] };
+        optional?: boolean;
+    }
+    | { kind: 'host'; capability: string; optional?: boolean }
+    | { kind: 'network'; domains: string[]; optional?: boolean };
+
+export type SynapsePlatform = 'ios' | 'android' | 'macos' | 'windows' | 'linux' | 'web';
+
+export type PluginCategory =
+    | 'productivity' | 'communication' | 'developer-tools' | 'social'
+    | 'media' | 'utilities' | 'finance' | 'health' | 'education' | 'entertainment';
+
 export interface PluginManifest {
     /** Manifest contract version. Synapse accepts version 2 only. */
     manifestVersion: 2;
@@ -18,13 +41,14 @@ export interface PluginManifest {
         allowedDomains?: string[];
         permissions?: string[];
         contentHash?: string;
+        allowedApps?: string[];
     };
 
     /** Named user connections available to actions. */
     connections?: Array<{
         alias: string;
         provider: string;
-        type: 'oauth2' | 'api_key' | 'mcp_oauth' | 'none';
+        type: ConnectionType;
         scopes?: string[];
         optional?: boolean;
     }>;
@@ -46,34 +70,11 @@ export interface PluginManifest {
         triggers: string[];
         inputSchema?: Record<string, unknown>;
         outputSchema?: Record<string, unknown>;
-        requirements?: Array<
-            | {
-                kind: 'connection';
-                alias: string;
-            }
-            | {
-                kind: 'mcp';
-                alias: string;
-                serverId: string;
-                allow: {
-                    tools: string[];
-                };
-                optional?: boolean;
-            }
-            | {
-                kind: 'host';
-                capability: string;
-                optional?: boolean;
-            }
-            | {
-                kind: 'network';
-                domains: string[];
-                optional?: boolean;
-            }
-        >;
-        platforms?: Array<'ios' | 'android' | 'macos' | 'windows' | 'linux' | 'web'>;
+        requirements?: PluginCapabilityRequirement[];
+        platforms?: SynapsePlatform[];
     }>;
-    categories?: string[];
+
+    categories?: PluginCategory[];
     keywords?: string[];
 }
 

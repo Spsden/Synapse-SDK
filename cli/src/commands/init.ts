@@ -3,7 +3,7 @@ import * as path from 'path';
 
 /**
  * Initialize a new plugin project with full developer tooling.
- * 
+ *
  * Creates:
  *   - manifest.json       — Plugin metadata with $schema for autocomplete
  *   - plugin.js           — Annotated starter code with type references
@@ -84,11 +84,16 @@ export async function initPlugin(name: string, targetDir?: string): Promise<stri
 // SDK Quick Reference:
 //   synapse.register()              — Handle an intent
 //   synapse.fetch()                 — HTTP requests (proxied through host)
+//   synapse.prompt()                — Ask the user a structured question
 //   synapse.ui.show()               — Display custom HTML UI
 //   synapse.ui.toast()              — Show a brief message
 //   synapse.connections.connect()   — Connect a declared account
 //   synapse.storage.get/set()       — Persistent key-value storage
+//   synapse.config.get()            — Read encrypted plugin settings
 //   synapse.mcp.callTool()          — Call a tool on a registered MCP server
+//   synapse.system.platform()       — Detect OS (ios/android/macos/windows/linux)
+//   synapse.system.calendar.*       — Read/write calendar events (iOS/macOS)
+//   synapse.system.runAppleScript() — Execute AppleScript (macOS)
 //   synapse.success() / .fail()     — Return results
 //
 // Full docs: type "synapse." and let autocomplete guide you!
@@ -100,6 +105,7 @@ synapse.register('${triggerName}', async (ctx) => {
   // ctx.input  — The shared content (text, image, URL, etc.)
   // ctx.llm    — AI analysis: detected intent + extracted entities
   // ctx.user   — User context: locale, timezone
+  // ctx.execution — Where this run started (share vs chat)
 
   const text = ctx.llm.entities.text || ctx.input.text;
 
@@ -109,6 +115,24 @@ synapse.register('${triggerName}', async (ctx) => {
       message: 'Text input is required'
     });
   }
+
+  // ── Ask the user a question (if supported) ──────────────────────────────
+  // if (ctx.execution?.capabilities?.prompt) {
+  //   const answer = await synapse.prompt({
+  //     message: 'What should we do?',
+  //     fields: [{
+  //       name: 'action',
+  //       type: 'select',
+  //       label: 'Action',
+  //       required: true,
+  //       options: [
+  //         { value: 'save', label: 'Save' },
+  //         { value: 'share', label: 'Share' }
+  //       ]
+  //     }]
+  //   });
+  //   if (answer.cancelled) return synapse.fail({ reason: 'cancelled', message: 'User cancelled' });
+  // }
 
   // ── Make API requests ───────────────────────────────────────────────────
   // Uncomment and modify for your use case:
@@ -260,7 +284,14 @@ await res.json();
 await res.text();
 res.ok / res.status / res.statusText
 
-// UI
+// Structured prompts (declarative — host renders on current surface)
+const answer = await synapse.prompt({
+  message: 'Which playlist?',
+  fields: [{ name: 'playlist', type: 'select', label: 'Playlist', options: [...] }]
+});
+if (!answer.cancelled) console.log(answer.values.playlist);
+
+// UI (explicit HTML — best for share-capture flows)
 const result = await synapse.ui.show(html, { title, width, height });
 await synapse.ui.toast('message');
 const yes = await synapse.ui.confirm('question?');
@@ -282,12 +313,11 @@ const apiKey = await synapse.config.get('key');
 const platform = await synapse.system.platform();
 await synapse.system.runShortcut('name', input);          // iOS/macOS
 await synapse.system.sendIntent({ action, extras });      // Android
-await synapse.system.runAppleScript('tell app ...');      // macOS
-await synapse.system.calendar.createEvent({ title, ... }); // iOS/macOS
+await synapse.system.runAppleScript('tell app ...');      // macOS (requires 'applescript' permission)
+await synapse.system.calendar.getEvents({ startDate, endDate }); // iOS/macOS (requires 'calendar' permission)
+await synapse.system.calendar.createEvent({ title, startDate, endDate });
 
 // MCP (Model Context Protocol — host-managed tool servers)
-// Declare MCP requirements on an action, then call allowlisted tools here.
-// The host runs the MCP server; plugins never deal with transport.
 const result = await synapse.mcp.callTool('server-name', 'tool-name', { arg: value });
 if (result.success) {
   console.log(result.data);   // typed as TResponse
