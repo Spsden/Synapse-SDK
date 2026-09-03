@@ -77,6 +77,6 @@
       "platforms": ["ios", "android", "macos", "windows", "linux"]
     }
   ],
-  "categories": ["productivity", "notes"],
+  "categories": ["productivity"],
   "keywords": ["notion", "notes", "mcp"]
 }
