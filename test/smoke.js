@@ -1,7 +1,7 @@
 // Offline smoke test for the Synapse SDK prompt round-trip and the
 // Spotify/GitHub/Notion plugins. Runs dist/index.global.js in a vm with a mock
 // host: connections always succeed, fetch returns canned API responses, MCP
-// tool calls return canned results, and prompt/ui_show simulate user answers.
+// tool calls return canned results, and prompts simulate user answers.
 //
 //   node test/smoke.js
 
@@ -19,7 +19,6 @@ const assert = (label, cond) => {
 const state = {
     fetchCalls: [],
     promptCalls: [],
-    uiShowCalls: [],
     mcpCalls: [],
     addedUris: null,
     createdIssue: null,
@@ -144,15 +143,6 @@ function makeHost(context, behavior) {
                 }
                 return;
             }
-            case 'ui_show': {
-                state.uiShowCalls.push(msg.payload);
-                const html = String(msg.payload.html || '');
-                const answer = /playlist/i.test(html)
-                    ? { action: 'selected', id: 'p2' }
-                    : (behavior.uiAnswer || { action: 'selected', id: 'spotify:track:t2' });
-                reply(answer);
-                return;
-            }
             case 'finished':
                 state.finishedResults.push(msg.payload);
                 behavior.onFinished(msg.payload);
@@ -203,7 +193,7 @@ const waitFor = (getResult) => new Promise((resolve) => {
 (async () => {
     // --- Scenario 1: spotify plugin, chat surface -------------------------
     await run('spotify (chat): ambiguous search → prompt; playlist entity match', async (done) => {
-        state.fetchCalls = []; state.promptCalls = []; state.uiShowCalls = []; state.addedUris = null; state.finishedResults = [];
+        state.fetchCalls = []; state.promptCalls = []; state.addedUris = null; state.finishedResults = [];
         let finished;
         const context = makeContext({ onFinished: (r) => (finished = r) });
         loadPlugin(context, 'plugins/spotify');
@@ -217,7 +207,6 @@ const waitFor = (getResult) => new Promise((resolve) => {
         assert('run completed', Boolean(finished));
         assert('succeeded', finished && finished.status === 'success');
         assert('prompt was used (chat surface)', state.promptCalls.length === 1 && state.promptCalls[0].fields[0].type === 'select');
-        assert('no HTML UI on chat surface', state.uiShowCalls.length === 0);
         assert('playlist resolved from entity (no playlist prompt)', !state.promptCalls.some(p => /playlist/i.test(p.message) && p !== state.promptCalls[0]));
         assert('track added to matched playlist', state.addedUris === null || Array.isArray(state.addedUris));
         assert('added the prompted track uri', JSON.stringify(state.addedUris) === JSON.stringify(['spotify:track:t1']));
@@ -225,12 +214,11 @@ const waitFor = (getResult) => new Promise((resolve) => {
         done(true);
     });
 
-    // --- Scenario 2: spotify plugin, chat host without prompt --------------
-    await run('spotify (chat): no prompt capability → HTML UI', async (done) => {
-        state.fetchCalls = []; state.promptCalls = []; state.uiShowCalls = []; state.addedUris = null; state.finishedResults = [];
+    // --- Scenario 2: spotify plugin, host without prompt -------------------
+    await run('spotify: no prompt capability → no interactive fallback', async (done) => {
+        state.fetchCalls = []; state.promptCalls = []; state.addedUris = null; state.finishedResults = [];
         let finished;
         const context = makeContext({
-            uiAnswer: { action: 'selected', id: 'spotify:track:t2' },
             onFinished: (r) => (finished = r),
         });
         loadPlugin(context, 'plugins/spotify');
@@ -240,17 +228,16 @@ const waitFor = (getResult) => new Promise((resolve) => {
             execution: { surface: 'chat' },
         });
         finished = await waitFor(() => finished);
-        if (!finished || finished.status !== 'success') console.log('  finished payload:', JSON.stringify(finished), 'uiShow:', state.uiShowCalls.length, 'fetches:', state.fetchCalls.map(c => c.method + ' ' + c.url).join(' | '));
         assert('run completed', Boolean(finished));
-        assert('HTML UI used for both questions', state.uiShowCalls.length === 2);
+        assert('failed closed without prompt capability', finished && finished.status === 'fail');
         assert('prompt never called without capability', state.promptCalls.length === 0);
-        assert('added the UI-selected track uri', JSON.stringify(state.addedUris) === JSON.stringify(['spotify:track:t2']));
+        assert('no track was added', state.addedUris === null);
         done(true);
     });
 
     // --- Scenario 3: github plugin, chat surface --------------------------
     await run('github (chat): repo from URL, missing title → text prompt', async (done) => {
-        state.fetchCalls = []; state.promptCalls = []; state.uiShowCalls = []; state.createdIssue = null; state.directRepoFetched = false; state.finishedResults = [];
+        state.fetchCalls = []; state.promptCalls = []; state.createdIssue = null; state.directRepoFetched = false; state.finishedResults = [];
         let finished;
         const context = makeContext({
             textAnswer: 'Smoke test title',
@@ -269,7 +256,6 @@ const waitFor = (getResult) => new Promise((resolve) => {
         assert('repository was fetched directly from URL', state.directRepoFetched);
         assert('title came from text prompt', state.createdIssue && state.createdIssue.title === 'Smoke test title');
         assert('text prompt used (chat surface)', state.promptCalls.some(p => p.fields[0].type === 'text'));
-        assert('no HTML UI on chat surface', state.uiShowCalls.length === 0);
         assert('issue number surfaced', finished && finished.data && finished.data.number === 42);
         assert('result links to issue', finished && finished.link === 'https://github.com/owner/repo/issues/42');
         done(true);

@@ -5,7 +5,6 @@ import {
     SynapseResult,
     SynapseRequestInit,
     SynapseResponseData,
-    UiShowOptions,
     UploadParams,
     UploadResult,
     StorageValue,
@@ -223,11 +222,10 @@ export class Synapse {
     /**
      * Ask the user a structured question and wait for the answer.
      *
-     * Unlike `synapse.ui.show()` (explicit HTML, best for share-capture
-     * flows), `prompt()` is declarative: the host renders it on whatever
-     * surface the run started from. In a chat run the question is asked
-     * inside the conversation; in a share run the host shows a form
-     * (dialog or generated UI). Plugins should use this only when the
+     * `prompt()` is declarative: the host renders it on whatever surface the
+     * run started from. In a chat run the question is asked inside the
+     * conversation; in a share run the host shows a native form. Plugins
+     * should use this only when the
      * dispatch context advertises `execution.capabilities.prompt`.
      *
      * @param spec - The question and its input fields
@@ -262,31 +260,6 @@ export class Synapse {
      * UI utilities for displaying plugin interfaces.
      */
     ui = {
-        /**
-         * Display a custom HTML interface to the user.
-         * Returns a promise that resolves when the UI is closed or sends data back.
-         * 
-         * The HTML can communicate back to the plugin using:
-         * ```javascript
-         * SynapseBridge.postMessage({ action: 'submit', data: {...} });
-         * ```
-         * 
-         * @param html - HTML content to display
-         * @param options - Display options (title, size, style)
-         * @returns Promise resolving to data sent from the UI
-         * 
-         * @example
-         * const result = await synapse.ui.show(`
-         *   <button onclick="SynapseBridge.postMessage({selected: 'optionA'})">
-         *     Option A
-         *   </button>
-         * `, { title: 'Select an option' });
-         * console.log(result.selected); // 'optionA'
-         */
-        show: async (html: string, options?: UiShowOptions): Promise<any> => {
-            return Bridge.send('ui_show', { html, options }, true);
-        },
-
         /**
          * Show a brief toast/snackbar message.
          * 

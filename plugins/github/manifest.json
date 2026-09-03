@@ -9,7 +9,7 @@
   "minSynapseVersion": "1.0.0",
   "security": {
     "allowedDomains": ["api.github.com"],
-    "permissions": ["network", "ui"]
+    "permissions": ["network"]
   },
   "connections": [
     {
@@ -57,7 +57,8 @@
       },
       "requirements": [
         { "kind": "connection", "alias": "github" },
-        { "kind": "network", "domains": ["api.github.com"] }
+        { "kind": "network", "domains": ["api.github.com"] },
+        { "kind": "host", "capability": "com.synapse.prompt" }
       ],
       "platforms": ["ios", "android", "macos", "windows", "linux"]
     }

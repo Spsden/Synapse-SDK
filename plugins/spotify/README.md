@@ -24,7 +24,7 @@ playlists.
 
 - **Chat runs** (`ctx.execution.surface === 'chat'`): questions are asked
   inside the conversation via `synapse.prompt()`.
-- **Share runs**: an HTML picker is shown via `synapse.ui.show()`.
+- **Share runs**: Synapse renders the same prompt as a native form.
 
 ## Setup
 

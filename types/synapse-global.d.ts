@@ -62,10 +62,8 @@ interface SynapseContext {
         timezone?: string;
     };
     /**
-     * Where this run started. Determines how the user should be asked
-     * for follow-up input: `chat` runs answer inside the conversation
-     * (via `synapse.prompt()`), `share` runs may show HTML UI
-     * (via `synapse.ui.show()`).
+     * Where this run started. The host renders `synapse.prompt()` with its
+     * native UI for the current surface.
      */
     execution?: {
         surface: 'share' | 'chat';
@@ -183,24 +181,6 @@ interface SynapseResponse {
      * @throws Error if body has already been consumed.
      */
     text(): Promise<string>;
-}
-
-// =============================================================================
-// UI Types
-// =============================================================================
-
-/**
- * Options for `synapse.ui.show()`.
- */
-interface UiShowOptions {
-    /** Title for the modal/sheet */
-    title?: string;
-    /** Preferred width in pixels (ignored on mobile) */
-    width?: number;
-    /** Preferred height in pixels */
-    height?: number;
-    /** Presentation style */
-    style?: 'modal' | 'sheet' | 'fullscreen';
 }
 
 // =============================================================================
@@ -525,11 +505,9 @@ interface SynapseSDK {
     /**
      * Ask the user a structured question and wait for the answer.
      *
-     * Unlike `synapse.ui.show()` (explicit HTML, best for share-capture
-     * flows), `prompt()` is declarative: the host renders it on whatever
-     * surface the run started from. In a chat run the question is asked
-     * inside the conversation; in a share run the host shows a form
-     * (dialog or generated UI). Plugins should use this only when the
+     * `prompt()` is declarative: the host renders it on whatever surface the
+     * run started from. In chat it appears inside the conversation; in share
+     * flows it appears as a native form. Plugins should use this only when the
      * dispatch context advertises `execution.capabilities.prompt`.
      *
      * @param spec - The question and its input fields
@@ -605,33 +583,9 @@ interface SynapseSDK {
     // =========================================================================
 
     /**
-     * UI utilities for displaying plugin interfaces.
-     * 
-     * Use `synapse.ui.show()` to display custom HTML, `synapse.ui.toast()`
-     * for brief messages, and `synapse.ui.confirm()` for yes/no dialogs.
+     * Native UI utilities for brief messages and confirmations.
      */
     ui: {
-        /**
-         * Display a custom HTML interface to the user.
-         * Returns a promise that resolves when the UI sends data back.
-         * 
-         * Use `SynapseBridge.postMessage(data)` in your HTML to send data
-         * back to the plugin and close the UI.
-         * 
-         * @param html - HTML content to display
-         * @param options - Display options (title, size, style)
-         * @returns Promise resolving to data sent from the UI via SynapseBridge.postMessage()
-         * 
-         * @example
-         * const result = await synapse.ui.show(`
-         *   <button onclick="SynapseBridge.postMessage({selected: 'A'})">
-         *     Option A
-         *   </button>
-         * `, { title: 'Choose', width: 400, height: 300 });
-         * console.log(result.selected); // 'A'
-         */
-        show(html: string, options?: UiShowOptions): Promise<any>;
-
         /**
          * Show a brief toast/snackbar message.
          * 
@@ -976,7 +930,7 @@ declare global {
      * - **Intent handling**: `synapse.register()`, `synapse.success()`, `synapse.fail()`
      * - **Network**: `synapse.fetch()`, `synapse.upload()`
      * - **Questions**: `synapse.prompt()` (chat or UI, host decides)
-     * - **UI**: `synapse.ui.show()`, `synapse.ui.toast()`, `synapse.ui.confirm()`
+     * - **UI**: `synapse.ui.toast()`, `synapse.ui.confirm()`
      * - **Auth**: `synapse.auth.authenticate()`, `synapse.auth.isAuthenticated()`
      * - **Connections**: `synapse.connections.connect()`, `synapse.connections.isConnected()`
      * - **MCP**: `synapse.mcp.callTool()` (host-managed servers, declared allowlists)
@@ -993,25 +947,6 @@ declare global {
      */
     const synapse: SynapseSDK;
 
-    /**
-     * Bridge for communication from plugin UI back to plugin code.
-     * Use this inside HTML passed to `synapse.ui.show()`.
-     * 
-     * @example
-     * // Inside HTML shown via synapse.ui.show():
-     * `<button onclick="SynapseBridge.postMessage({ action: 'selected', id: '123' })">
-     *   Select
-     * </button>`
-     */
-    const SynapseBridge: {
-        /**
-         * Send data from the UI back to the plugin.
-         * This resolves the Promise returned by `synapse.ui.show()`.
-         * 
-         * @param data - Any JSON-serializable data to send back
-         */
-        postMessage(data: any): void;
-    };
 }
 
 export {};

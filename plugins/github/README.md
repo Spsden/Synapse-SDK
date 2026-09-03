@@ -24,7 +24,7 @@ A Synapse plugin that creates an issue in one of your GitHub repositories.
 
 - **Chat runs** (`ctx.execution.surface === 'chat'`): questions are asked
   inside the conversation via `synapse.prompt()`.
-- **Share runs**: an HTML picker/form is shown via `synapse.ui.show()`.
+- **Share runs**: Synapse renders the same prompt as a native form.
 
 ## Setup
 

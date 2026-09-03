@@ -6,10 +6,6 @@ import 'package:http/http.dart' as http;
 /// Callback signature for status updates from the plugin system.
 typedef SynapseStatusCallback = void Function(String status, dynamic data);
 
-/// Callback signature for UI display requests.
-/// Returns the data sent back from the UI, or null if cancelled.
-typedef SynapseUiCallback = Future<dynamic> Function(String html, Map<String, dynamic>? options);
-
 /// Callback signature for toast messages.
 typedef SynapseToastCallback = void Function(String message, int durationMs);
 
@@ -54,11 +50,6 @@ class SynapseHost {
   
   /// Called when a plugin action finishes (success or error).
   SynapseStatusCallback? onStatusChanged;
-  
-  /// Called when a plugin requests to show custom UI.
-  /// The host application should display the HTML in a WebView and return
-  /// any data sent back via SynapseBridge.postMessage().
-  SynapseUiCallback? onUiShow;
   
   /// Called when a plugin wants to show a toast message.
   SynapseToastCallback? onToast;
@@ -176,10 +167,6 @@ class SynapseHost {
         break;
 
       // UI
-      case 'ui_show':
-        await _handleUiShow(id, payload);
-        break;
-        
       case 'ui_toast':
         _handleToast(payload);
         break;
@@ -314,30 +301,6 @@ class SynapseHost {
   // =========================================================================
   // UI Handlers
   // =========================================================================
-
-  Future<void> _handleUiShow(String? id, Map<String, dynamic> payload) async {
-    if (id == null) return;
-    
-    if (onUiShow == null) {
-      _resolvePromise(id, null, error: 'UI display not implemented');
-      return;
-    }
-    
-    try {
-      final html = payload['html'] as String?;
-      final options = payload['options'] as Map<String, dynamic>?;
-      
-      if (html == null) {
-        _resolvePromise(id, null, error: 'No HTML content provided');
-        return;
-      }
-      
-      final result = await onUiShow!(html, options);
-      _resolvePromise(id, result);
-    } catch (e) {
-      _resolvePromise(id, null, error: e.toString());
-    }
-  }
 
   void _handleToast(Map<String, dynamic> payload) {
     final message = payload['message'] as String? ?? '';

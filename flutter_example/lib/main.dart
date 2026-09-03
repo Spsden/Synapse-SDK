@@ -1,7 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'synapse_host.dart';
 
 void main() {
@@ -147,19 +145,6 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
           _result = data.toString();
         }
       });
-    };
-    
-    // UI Show callback
-    _host.onUiShow = (html, options) async {
-      _log('UI Show requested');
-      return await showDialog<dynamic>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => PluginUiDialog(
-          html: html,
-          title: options?['title'] as String? ?? 'Plugin',
-        ),
-      );
     };
     
     // Toast callback
@@ -460,84 +445,6 @@ class _SynapseTestScreenState extends State<SynapseTestScreen> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class PluginUiDialog extends StatefulWidget {
-  final String html;
-  final String title;
-
-  const PluginUiDialog({
-    super.key,
-    required this.html,
-    required this.title,
-  });
-
-  @override
-  State<PluginUiDialog> createState() => _PluginUiDialogState();
-}
-
-class _PluginUiDialogState extends State<PluginUiDialog> {
-  late final WebViewController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel(
-        'SynapseBridge',
-        onMessageReceived: (message) {
-          try {
-            final data = jsonDecode(message.message);
-            Navigator.of(context).pop(data);
-          } catch (e) {
-            Navigator.of(context).pop({'raw': message.message});
-          }
-        },
-      )
-      ..loadHtmlString(widget.html);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: SizedBox(
-          width: 500,
-          height: 600,
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      widget.title,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).pop(null),
-                      iconSize: 20,
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: WebViewWidget(controller: _controller),
-              ),
-            ],
-          ),
         ),
       ),
     );

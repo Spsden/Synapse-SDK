@@ -49,10 +49,8 @@ export interface SynapseContext {
         timezone?: string;
     };
     /**
-     * Where this run started. Determines how the user should be asked
-     for follow-up input: `chat` runs answer inside the conversation
-     (via `synapse.prompt()`), `share` runs may show HTML UI
-     (via `synapse.ui.show()`).
+     * Where this run started. The host renders `synapse.prompt()` with its
+     * native UI for the current surface.
      */
     execution?: {
         surface: 'share' | 'chat';
@@ -158,24 +156,6 @@ export interface SynapseResponseData {
     headers: Record<string, string>;
     /** Raw response body as string */
     body: string;
-}
-
-// =============================================================================
-// UI Types
-// =============================================================================
-
-/**
- * Options for displaying plugin UI.
- */
-export interface UiShowOptions {
-    /** Title for the modal/sheet */
-    title?: string;
-    /** Preferred width (ignored on mobile) */
-    width?: number;
-    /** Preferred height */
-    height?: number;
-    /** Presentation style */
-    style?: 'modal' | 'sheet' | 'fullscreen';
 }
 
 // =============================================================================

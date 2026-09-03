@@ -545,7 +545,7 @@ function handleHostMessage(opts: {
  * Load .env or .synapse.env if present
  */
 function loadLocalEnv(dir: string): Record<string, string> {
-    const env: Record<string, string> = {};
+    const env: Record<string, string> = { ...(process.env as Record<string, string>) };
     const files = ['.env', '.synapse.env', '.env.local'];
 
     for (const file of files) {

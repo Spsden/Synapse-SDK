@@ -114,30 +114,6 @@ var SynapseSDK = (() => {
        */
       this.ui = {
         /**
-         * Display a custom HTML interface to the user.
-         * Returns a promise that resolves when the UI is closed or sends data back.
-         * 
-         * The HTML can communicate back to the plugin using:
-         * ```javascript
-         * SynapseBridge.postMessage({ action: 'submit', data: {...} });
-         * ```
-         * 
-         * @param html - HTML content to display
-         * @param options - Display options (title, size, style)
-         * @returns Promise resolving to data sent from the UI
-         * 
-         * @example
-         * const result = await synapse.ui.show(`
-         *   <button onclick="SynapseBridge.postMessage({selected: 'optionA'})">
-         *     Option A
-         *   </button>
-         * `, { title: 'Select an option' });
-         * console.log(result.selected); // 'optionA'
-         */
-        show: async (html, options) => {
-          return Bridge.send("ui_show", { html, options }, true);
-        },
-        /**
          * Show a brief toast/snackbar message.
          * 
          * @param message - Message to display
@@ -209,6 +185,23 @@ var SynapseSDK = (() => {
         // Access tokens are never exposed to plugins. Use synapse.fetch
         // with `provider` to get Authorization injected by the host.
       };
+      /**
+       * Manifest v2 named user connections.
+       *
+       * Connections are resolved by the host from the plugin manifest. Tokens and
+       * API keys are never returned to plugin JavaScript.
+       */
+      this.connections = {
+        isConnected: async (alias) => {
+          return Bridge.send("connection_check", { alias }, true);
+        },
+        connect: async (alias) => {
+          return Bridge.send("connection_connect", { alias }, true);
+        },
+        disconnect: async (alias) => {
+          await Bridge.send("connection_disconnect", { alias });
+        }
+      };
       // =========================================================================
       // Storage Namespace
       // =========================================================================
@@ -263,16 +256,16 @@ var SynapseSDK = (() => {
       /**
        * Plugin configuration for API keys and user settings.
        * Values are stored encrypted and scoped to the plugin.
-       * Config fields are declared in plugin.json and the host auto-generates UI.
+       * Config fields are declared in manifest.json and the host auto-generates UI.
        */
       this.config = {
         /**
          * Get a config value.
-          *
-          * @param key - Config key as declared in plugin.json
+         * 
+         * @param key - Config key as declared in manifest.json
          * @returns The config value or null if not set
-          *
-          * @example
+         * 
+         * @example
          * const apiKey = await synapse.config.get('openai_api_key');
          */
         get: async (key) => {
@@ -281,8 +274,8 @@ var SynapseSDK = (() => {
         /**
          * Set a config value programmatically.
          * Note: Users typically set these via the plugin settings UI.
-          *
-          * @param key - Config key
+         * 
+         * @param key - Config key
          * @param value - Value to store
          */
         set: async (key, value) => {
@@ -290,12 +283,84 @@ var SynapseSDK = (() => {
         }
       };
       // =========================================================================
+      // MCP Namespace
+      // =========================================================================
+      /**
+       * Model Context Protocol (MCP) utilities.
+       * Allows plugins to call tools on standard MCP servers managed by the host.
+       */
+      this.mcp = {
+        /**
+         * Call a tool on a registered MCP server.
+         * 
+         * This function returns a wrapped response object: `{ success: boolean, data?: TResponse, error?: string, code?: string }`.
+         * Internally, it uses try-catch. If a catastrophic execution, bridge, or network error occurs, it catches the error
+         * and returns it as a wrapped success: false result so plugins can handle failures gracefully without crashing.
+         * 
+         * @param serverName - Package-local hosted MCP server ID from manifest.json
+         * @param toolName - Name of the tool to execute
+         * @param args - Arguments to pass to the tool (JSON-serializable)
+         * @param options - Execution options (timeout, routing policy)
+         * @returns Promise resolving to a wrapped McpCallResult containing the typed data
+         * 
+         * @example
+         * interface SpotifyArgs { deviceId?: string; }
+         * interface SpotifyTrack { name: string; artist: string; }
+         * 
+         * const result = await synapse.mcp.callTool<SpotifyTrack, SpotifyArgs>(
+         *   'spotify',
+         *   'get-current-song',
+         *   { deviceId: '123' },
+         *   { timeoutMs: 5000 }
+         * );
+         * if (result.success) {
+         *   console.log(`Now playing: ${result.data.name}`);
+         * } else {
+         *   console.error(`Error: ${result.error}`);
+         * }
+         */
+        callTool: async (serverName, toolName, args, options) => {
+          try {
+            const response = await Bridge.send(
+              "mcp_callTool",
+              {
+                serverName,
+                toolName,
+                arguments: args || {},
+                options: {
+                  timeoutMs: options?.timeoutMs ?? 1e4
+                }
+              },
+              true
+            );
+            if (response && (response.success === false || response.isError === true)) {
+              return {
+                success: false,
+                error: response.error || response.message || "Unknown MCP tool error",
+                code: response.code || "UNKNOWN_ERROR"
+              };
+            }
+            const data = response && typeof response === "object" && "data" in response ? response.data : response;
+            return {
+              success: true,
+              data
+            };
+          } catch (e) {
+            return {
+              success: false,
+              error: e.message || String(e),
+              code: "BRIDGE_ERROR"
+            };
+          }
+        }
+      };
+      // =========================================================================
       // System Namespace (Shortcuts, Intents, AppleScript & EventKit)
       // =========================================================================
       /**
        * System utilities for OS-level integration.
-        *
-        * Provides access to:
+       * 
+       * Provides access to:
        * - **Shortcuts** (iOS/macOS) — trigger Apple Shortcuts
        * - **Intents** (Android) — send Android Intents
        * - **AppleScript** (macOS) — execute AppleScript for any scriptable app
@@ -306,10 +371,10 @@ var SynapseSDK = (() => {
         /**
          * Get the current platform.
          * Use this to build cross-platform plugins with graceful fallbacks.
-          *
-          * @returns The current platform identifier
-          *
-          * @example
+         * 
+         * @returns The current platform identifier
+         * 
+         * @example
          * const platform = await synapse.system.platform();
          * if (platform === 'macos') {
          *   await synapse.system.runAppleScript('tell application "Notes" to activate');
@@ -322,11 +387,11 @@ var SynapseSDK = (() => {
         },
         /**
          * Run an iOS Shortcut.
-          *
-          * @param name - Name of the shortcut on the user's device
+         * 
+         * @param name - Name of the shortcut on the user's device
          * @param input - Optional text input for the shortcut
-          *
-          * @example
+         * 
+         * @example
          * await synapse.system.runShortcut('Save to Keep', 'Buy milk');
          */
         runShortcut: async (name, input) => {
@@ -334,10 +399,10 @@ var SynapseSDK = (() => {
         },
         /**
          * Send an Android Intent.
-          *
-          * @param options - Intent configuration
-          *
-          * @example
+         * 
+         * @param options - Intent configuration
+         * 
+         * @example
          * await synapse.system.sendIntent({
          *   action: 'android.intent.action.SEND',
          *   type: 'text/plain',
@@ -354,24 +419,24 @@ var SynapseSDK = (() => {
         /**
          * Execute an AppleScript on macOS.
          * Requires 'applescript' permission in the plugin manifest.
-          *
-          * The host validates that the script only targets apps declared in
+         * 
+         * The host validates that the script only targets apps declared in
          * the manifest's `allowedApps` list, and blocks dangerous commands
          * like `do shell script`.
-          *
-          * @param script - The AppleScript source code to execute
+         * 
+         * @param script - The AppleScript source code to execute
          * @param options - Execution options (timeout, etc.)
          * @returns The script's return value as a string, or null
-          *
-          * @example
+         * 
+         * @example
          * // Create an Apple Note
          * const result = await synapse.system.runAppleScript(`
          *   tell application "Notes"
          *     make new note at folder "Notes" with properties {name:"Hello", body:"World"}
          *   end tell
          * `);
-          *
-          * @example
+         * 
+         * @example
          * // Get current track from Apple Music
          * const track = await synapse.system.runAppleScript(`
          *   tell application "Music"
@@ -398,10 +463,10 @@ var SynapseSDK = (() => {
         calendar: {
           /**
            * List available calendars.
-            *
-            * @returns Array of calendar info objects
-            *
-            * @example
+           * 
+           * @returns Array of calendar info objects
+           * 
+           * @example
            * const calendars = await synapse.system.calendar.getCalendars();
            * const work = calendars.find(c => c.title === 'Work');
            */
@@ -410,11 +475,11 @@ var SynapseSDK = (() => {
           },
           /**
            * Query calendar events within a date range.
-            *
-            * @param options - Query parameters (date range, optional calendar filter)
+           * 
+           * @param options - Query parameters (date range, optional calendar filter)
            * @returns Array of calendar events
-            *
-            * @example
+           * 
+           * @example
            * const events = await synapse.system.calendar.getEvents({
            *   startDate: '2026-04-06T00:00:00',
            *   endDate: '2026-04-07T00:00:00'
@@ -425,11 +490,11 @@ var SynapseSDK = (() => {
           },
           /**
            * Create a new calendar event.
-            *
-            * @param event - Event parameters
+           * 
+           * @param event - Event parameters
            * @returns Object with the created event's ID
-            *
-            * @example
+           * 
+           * @example
            * const { eventId } = await synapse.system.calendar.createEvent({
            *   title: 'Team Standup',
            *   startDate: '2026-04-07T09:00:00',
@@ -552,7 +617,8 @@ var SynapseSDK = (() => {
         method: init?.method || "GET",
         headers: init?.headers || {},
         body: typeof init?.body === "object" ? JSON.stringify(init.body) : init?.body,
-        provider: init?.provider
+        provider: init?.provider,
+        connection: init?.connection
       };
       const responseData = await Bridge.send("fetch", request, true);
       return new SynapseResponse(responseData);
@@ -563,11 +629,10 @@ var SynapseSDK = (() => {
     /**
      * Ask the user a structured question and wait for the answer.
      *
-     * Unlike `synapse.ui.show()` (explicit HTML, best for share-capture
-     * flows), `prompt()` is declarative: the host renders it on whatever
-     * surface the run started from. In a chat run the question is asked
-     * inside the conversation; in a share run the host shows a form
-     * (dialog or generated UI). Plugins should use this only when the
+     * `prompt()` is declarative: the host renders it on whatever surface the
+     * run started from. In a chat run the question is asked inside the
+     * conversation; in a share run the host shows a native form. Plugins
+     * should use this only when the
      * dispatch context advertises `execution.capabilities.prompt`.
      *
      * @param spec - The question and its input fields

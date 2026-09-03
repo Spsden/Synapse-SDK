@@ -150,17 +150,25 @@ await res.json()  // Parse as JSON
 await res.text()  // Get as text
 ```
 
-### `synapse.ui`
-
-Display custom UI to users.
+### `synapse.prompt(spec)`
 
 ```javascript
-// Show HTML interface
-const result = await synapse.ui.show(`
-  <button onclick="SynapseBridge.postMessage({selected: 'A'})">
-    Option A
-  </button>
-`, { title: 'Select Option' });
+const result = await synapse.prompt({
+  message: 'Choose an option',
+  fields: [{
+    name: 'choice',
+    type: 'select',
+    label: 'Option',
+    options: [{ value: 'A', label: 'Option A' }]
+  }]
+});
+```
+
+### `synapse.ui`
+
+Native host notifications and confirmations.
+
+```javascript
 
 // Toast message
 await synapse.ui.toast('Action completed!');

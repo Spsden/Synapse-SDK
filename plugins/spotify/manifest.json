@@ -9,7 +9,7 @@
   "minSynapseVersion": "1.0.0",
   "security": {
     "allowedDomains": ["api.spotify.com"],
-    "permissions": ["network", "ui"]
+    "permissions": ["network"]
   },
   "connections": [
     {
@@ -62,7 +62,8 @@
       },
       "requirements": [
         { "kind": "connection", "alias": "spotify" },
-        { "kind": "network", "domains": ["api.spotify.com"] }
+        { "kind": "network", "domains": ["api.spotify.com"] },
+        { "kind": "host", "capability": "com.synapse.prompt" }
       ],
       "platforms": ["ios", "android", "macos", "windows", "linux"]
     }

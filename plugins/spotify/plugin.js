@@ -220,112 +220,25 @@ async function resolvePlaylist(ctx, playlists) {
 // =============================================================================
 
 function canPrompt(ctx) {
-  return Boolean(
-    ctx.execution &&
-    ctx.execution.surface === 'chat' &&
-    ctx.execution.capabilities?.prompt
-  );
+  return Boolean(ctx.execution?.capabilities?.prompt);
 }
 
 /**
- * Ask the user to pick one option. In a chat run the question is asked
- * inside the conversation via synapse.prompt(); in a share run (or on
- * hosts without prompt support) an HTML picker is shown instead.
+ * Ask the user to pick one option using the host's native prompt surface.
  * Returns the chosen value, or null if the user cancelled.
  */
 async function chooseOption(ctx, message, options) {
-  if (canPrompt(ctx)) {
-    const result = await synapse.prompt({
-      message,
-      fields: [{
-        name: 'choice',
-        type: 'select',
-        label: 'Choose',
-        required: true,
-        options
-      }]
-    });
-    if (result.cancelled || !result.values || !result.values.choice) {
-      return null;
-    }
-    return result.values.choice;
-  }
-
-  return showOptionPicker(message, options);
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-async function showOptionPicker(title, options) {
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-          padding: 24px;
-          margin: 0;
-          background-color: #191414;
-          color: #ffffff;
-        }
-        h2 {
-          font-size: 1.25rem;
-          font-weight: 600;
-          margin-bottom: 1.5rem;
-        }
-        .list {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-        .item {
-          padding: 12px 16px;
-          border: 1px solid #3d3a3a;
-          border-radius: 8px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          font-size: 14px;
-        }
-        .item:hover {
-          background-color: #1db954;
-          border-color: #1db954;
-        }
-      </style>
-    </head>
-    <body>
-      <h2>${escapeHtml(title)}</h2>
-      <div class="list">
-        ${options.map(option => `
-          <div class="item" data-value="${escapeHtml(option.value)}" onclick="select(this.dataset.value)">
-            <span>${escapeHtml(option.label)}</span>
-          </div>
-        `).join('')}
-      </div>
-      <script>
-        function select(id) {
-          SynapseBridge.postMessage({
-            action: 'selected',
-            id: id
-          });
-        }
-      </script>
-    </body>
-    </html>
-  `;
-
-  const result = await synapse.ui.show(html, {
-    title,
-    width: 420,
-    height: 520
+  if (!canPrompt(ctx)) return null;
+  const result = await synapse.prompt({
+    message,
+    fields: [{
+      name: 'choice',
+      type: 'select',
+      label: 'Choose',
+      required: true,
+      options
+    }]
   });
-
-  return (result && result.action === 'selected') ? result.id : null;
+  if (result.cancelled || !result.values || !result.values.choice) return null;
+  return result.values.choice;
 }
