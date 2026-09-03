@@ -13,23 +13,39 @@ async function addToNotion(ctx) {
   try {
     await ensureNotionConnection();
 
+    const entities =
+      (ctx.llm?.entities && typeof ctx.llm.entities === 'object' && ctx.llm.entities.entities) ||
+      (ctx.llm?.entities && typeof ctx.llm.entities === 'object' && ctx.llm.entities.llm?.entities) ||
+      ctx.llm?.entities ||
+      {};
+    const inputObj =
+      (ctx.input && typeof ctx.input === 'object' && ctx.input.input) ||
+      ctx.input ||
+      {};
+
     const title =
-      normalizeString(ctx.llm?.entities?.title) ||
+      normalizeString(entities.title) ||
+      normalizeString(inputObj.title) ||
       normalizeString(ctx.input?.title) ||
+      inferTitle(normalizeString(inputObj.text)) ||
       inferTitle(normalizeString(ctx.input?.text)) ||
       'Note from Synapse';
     const content =
-      normalizeString(ctx.llm?.entities?.content) ||
+      normalizeString(entities.content) ||
+      normalizeString(inputObj.content) ||
       normalizeString(ctx.input?.content) ||
+      normalizeString(inputObj.text) ||
       normalizeString(ctx.input?.text) ||
       '';
 
     // Check for explicitly provided parent database or page
     const explicitDatabaseId =
-      normalizeString(ctx.llm?.entities?.databaseId) ||
+      normalizeString(entities.databaseId) ||
+      normalizeString(inputObj.databaseId) ||
       normalizeString(ctx.input?.databaseId);
     const explicitParentPageId =
-      normalizeString(ctx.llm?.entities?.parentPageId) ||
+      normalizeString(entities.parentPageId) ||
+      normalizeString(inputObj.parentPageId) ||
       normalizeString(ctx.input?.parentPageId);
 
     let parent = null;
@@ -85,14 +101,27 @@ async function searchNotion(ctx) {
   try {
     await ensureNotionConnection();
 
+    const entities =
+      (ctx.llm?.entities && typeof ctx.llm.entities === 'object' && ctx.llm.entities.entities) ||
+      (ctx.llm?.entities && typeof ctx.llm.entities === 'object' && ctx.llm.entities.llm?.entities) ||
+      ctx.llm?.entities ||
+      {};
+    const inputObj =
+      (ctx.input && typeof ctx.input === 'object' && ctx.input.input) ||
+      ctx.input ||
+      {};
+
     const query =
-      normalizeString(ctx.llm?.entities?.query) ||
+      normalizeString(entities.query) ||
+      normalizeString(inputObj.query) ||
       normalizeString(ctx.input?.query) ||
+      normalizeString(inputObj.text) ||
       normalizeString(ctx.input?.text) ||
       '';
 
     const filterType =
-      normalizeString(ctx.llm?.entities?.filter) ||
+      normalizeString(entities.filter) ||
+      normalizeString(inputObj.filter) ||
       normalizeString(ctx.input?.filter) ||
       'database';
 
