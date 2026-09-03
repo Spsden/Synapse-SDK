@@ -5,20 +5,25 @@ import * as path from 'path';
  * Initialize a new plugin project with full developer tooling.
  *
  * Creates:
- *   - manifest.json       — Plugin metadata with $schema for autocomplete
- *   - plugin.js           — Annotated starter code with type references
- *   - jsconfig.json       — Enables IntelliSense for the synapse global
- *   - synapse-global.d.ts — Type definitions (copied from SDK)
- *   - README.md           — Plugin documentation
- *   - .vscode/settings.json — Editor settings
+ *   - .synapse/
+ *     - manifest.schema.json — Local copy of manifest schema for offline autocomplete
+ *     - synapse-global.d.ts — Full SDK type definitions with JSDoc
+ *   - .vscode/
+ *     - settings.json        — Schema associations, quick suggestions, checkJs
+ *     - synapse.code-snippets — Editor snippets (syn-handler, syn-fetch, syn-prompt, syn-mcp, etc.)
+ *     - extensions.json      — Recommended editor extensions
+ *   - manifest.json          — Plugin metadata referencing ./.synapse/manifest.schema.json
+ *   - plugin.js              — Annotated starter code with type reference & examples
+ *   - jsconfig.json          — Configures IntelliSense for pure JS
+ *   - README.md              — Plugin documentation and cheat sheet
  */
 export async function initPlugin(name: string, targetDir?: string): Promise<string> {
-    // Convert name to ID format
-    const id = name.toLowerCase().replace(/[^a-z0-9]/g, '.');
-    const fullId = id.includes('.') ? id : `com.synapse.${id}`;
+    // Convert name to ID format (e.g. "My Plugin" -> "com.synapse.my.plugin")
+    const cleanName = name.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '');
+    const fullId = cleanName.includes('.') ? (cleanName.startsWith('com.') ? cleanName : `com.${cleanName}`) : `com.synapse.${cleanName}`;
 
-    // Convert name to a trigger-friendly format
-    const triggerName = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    // Convert name to a trigger-friendly format (e.g. "my_plugin")
+    const triggerName = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 
     // Determine target directory
     const dir = path.resolve(targetDir || `./${name}`);
@@ -30,14 +35,20 @@ export async function initPlugin(name: string, targetDir?: string): Promise<stri
 
     // Create directories
     fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(path.join(dir, '.synapse'), { recursive: true });
     fs.mkdirSync(path.join(dir, '.vscode'), { recursive: true });
 
     // =========================================================================
-    // manifest.json — with $schema for autocomplete
+    // .synapse/ — Copy type definitions and manifest schema
     // =========================================================================
+    copyTypeDefs(dir);
+    copyManifestSchema(dir);
 
+    // =========================================================================
+    // manifest.json — with local $schema for instant autocomplete
+    // =========================================================================
     const manifest = {
-        $schema: './node_modules/@synapse/sdk/schemas/manifest.schema.json',
+        $schema: './.synapse/manifest.schema.json',
         manifestVersion: 2,
         id: fullId,
         name: name,
@@ -55,14 +66,28 @@ export async function initPlugin(name: string, targetDir?: string): Promise<stri
 
         actions: [{
             id: triggerName,
+            description: `Handle ${triggerName} action`,
             triggers: [triggerName],
             inputSchema: {
                 type: 'object',
                 properties: {
-                    text: { type: 'string' }
+                    text: {
+                        type: 'string',
+                        description: 'Input text content'
+                    }
+                }
+            },
+            outputSchema: {
+                type: 'object',
+                properties: {
+                    message: { type: 'string' },
+                    input: { type: 'string' }
                 }
             }
-        }]
+        }],
+
+        categories: ['productivity'],
+        keywords: [triggerName]
     };
 
     fs.writeFileSync(
@@ -71,43 +96,31 @@ export async function initPlugin(name: string, targetDir?: string): Promise<stri
     );
 
     // =========================================================================
-    // plugin.js — annotated with type references
+    // plugin.js — annotated with type references and guidance
     // =========================================================================
-
     const plugin = `// @ts-check
-/// <reference path="./synapse-global.d.ts" />
+/// <reference path="./.synapse/synapse-global.d.ts" />
 
 // ${name} — Synapse Plugin
 //
-// Triggers: ${triggerName}
+// Trigger: ${triggerName}
 //
-// SDK Quick Reference:
-//   synapse.register()              — Handle an intent
-//   synapse.fetch()                 — HTTP requests (proxied through host)
-//   synapse.prompt()                — Ask the user a structured question
-//   synapse.ui.show()               — Display custom HTML UI
-//   synapse.ui.toast()              — Show a brief message
-//   synapse.connections.connect()   — Connect a declared account
-//   synapse.storage.get/set()       — Persistent key-value storage
-//   synapse.config.get()            — Read encrypted plugin settings
-//   synapse.mcp.callTool()          — Call a tool on a registered MCP server
-//   synapse.system.platform()       — Detect OS (ios/android/macos/windows/linux)
-//   synapse.system.calendar.*       — Read/write calendar events (iOS/macOS)
-//   synapse.system.runAppleScript() — Execute AppleScript (macOS)
-//   synapse.success() / .fail()     — Return results
-//
-// Full docs: type "synapse." and let autocomplete guide you!
+// 💡 Editor Superpowers:
+// - Type "synapse." anywhere to see available methods with full docs & examples.
+// - Type "syn-" to insert ready-made snippets (syn-handler, syn-fetch, syn-prompt, syn-mcp).
+// - Hover over any method or parameter to see type details and real-world examples.
+// - Open manifest.json to configure triggers, permissions, connections, and hosted MCP servers.
 
 synapse.register('${triggerName}', async (ctx) => {
   synapse.log('${name}: ${triggerName} triggered');
 
-  // ── Extract input ───────────────────────────────────────────────────────
-  // ctx.input  — The shared content (text, image, URL, etc.)
-  // ctx.llm    — AI analysis: detected intent + extracted entities
-  // ctx.user   — User context: locale, timezone
-  // ctx.execution — Where this run started (share vs chat)
+  // ── 1. Extract and validate input ──────────────────────────────────────────
+  // ctx.input     — Raw content captured by host (text, imageRef, url, etc.)
+  // ctx.llm       — AI analysis (intent, entities)
+  // ctx.user      — User context (locale, timezone)
+  // ctx.execution — Surface context ('chat' | 'share', capabilities)
 
-  const text = ctx.llm.entities.text || ctx.input.text;
+  const text = ctx.llm?.entities?.text || ctx.input?.text;
 
   if (!text) {
     return synapse.fail({
@@ -116,47 +129,23 @@ synapse.register('${triggerName}', async (ctx) => {
     });
   }
 
-  // ── Ask the user a question (if supported) ──────────────────────────────
-  // if (ctx.execution?.capabilities?.prompt) {
-  //   const answer = await synapse.prompt({
-  //     message: 'What should we do?',
-  //     fields: [{
-  //       name: 'action',
-  //       type: 'select',
-  //       label: 'Action',
-  //       required: true,
-  //       options: [
-  //         { value: 'save', label: 'Save' },
-  //         { value: 'share', label: 'Share' }
-  //       ]
-  //     }]
-  //   });
-  //   if (answer.cancelled) return synapse.fail({ reason: 'cancelled', message: 'User cancelled' });
-  // }
-
-  // ── Make API requests ───────────────────────────────────────────────────
-  // Uncomment and modify for your use case:
+  // ── 2. Your custom logic here ─────────────────────────────────────────────
+  // (Try typing snippets like "syn-fetch", "syn-prompt", or "syn-mcp")
   //
+  // Example: Authenticated HTTP request (proxied through host)
   // const res = await synapse.fetch('https://api.example.com/endpoint', {
   //   method: 'POST',
   //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({ text }),
-  //   connection: 'my_connection'  // Alias declared in manifest.json
+  //   connection: 'my_connection', // Alias declared in manifest.json connections
+  //   body: JSON.stringify({ query: text })
   // });
   //
-  // if (!res.ok) {
-  //   const err = await res.json().catch(() => ({}));
-  //   return synapse.fail({
-  //     reason: 'api_error',
-  //     message: err.message || 'Request failed'
-  //   });
-  // }
-  //
-  // const data = await res.json();
+  // Example: Call a hosted MCP server (declared in manifest.mcp.servers)
+  // const mcpResult = await synapse.mcp.callTool('server-id', 'tool-name', { text });
 
-  // ── Return result ───────────────────────────────────────────────────────
+  // ── 3. Return success result ──────────────────────────────────────────────
   return synapse.success({
-    message: 'Action completed!',
+    message: 'Action completed successfully!',
     input: text
   });
 });
@@ -167,20 +156,19 @@ synapse.register('${triggerName}', async (ctx) => {
     // =========================================================================
     // jsconfig.json — enables IntelliSense for plain JS
     // =========================================================================
-
     const jsconfig = {
         compilerOptions: {
             checkJs: true,
-            target: 'ES2020',
-            moduleResolution: 'node',
-            types: []
+            target: 'ES2022',
+            moduleResolution: 'node'
         },
         include: [
             '*.js',
-            'synapse-global.d.ts'
+            '.synapse/synapse-global.d.ts'
         ],
         exclude: [
-            'node_modules'
+            'node_modules',
+            'dist'
         ]
     };
 
@@ -190,31 +178,22 @@ synapse.register('${triggerName}', async (ctx) => {
     );
 
     // =========================================================================
-    // synapse-global.d.ts — copy type definitions into the plugin project
-    // =========================================================================
-
-    copyTypeDefs(dir);
-
-    // =========================================================================
     // .vscode/settings.json — editor configuration
     // =========================================================================
-
     const vscodeSettings = {
-        // Enable TypeScript checking for JavaScript files
         'js/ts.implicitProjectConfig.checkJs': true,
-        // Associate manifest.json with the schema
         'json.schemas': [
             {
                 fileMatch: ['manifest.json'],
-                url: './node_modules/@synapse/sdk/schemas/manifest.schema.json'
+                url: './.synapse/manifest.schema.json'
             }
         ],
-        // Recommend useful extensions
         'editor.quickSuggestions': {
             other: true,
-            comments: false,
+            comments: true,
             strings: true
-        }
+        },
+        'editor.suggest.snippetsPreventQuickSuggestions': false
     };
 
     fs.writeFileSync(
@@ -223,43 +202,203 @@ synapse.register('${triggerName}', async (ctx) => {
     );
 
     // =========================================================================
+    // .vscode/synapse.code-snippets — editor shortcuts
+    // =========================================================================
+    const snippets = {
+        'Synapse Intent Handler': {
+            prefix: 'syn-handler',
+            body: [
+                "synapse.register('${1:trigger_name}', async (ctx) => {",
+                "  synapse.log('${2:Plugin}: ' + '${1:trigger_name}' + ' called');",
+                "  ",
+                "  // Extract input",
+                "  const text = ctx.llm?.entities?.text || ctx.input?.text;",
+                "  if (!text) {",
+                "    return synapse.fail({",
+                "      reason: 'validation',",
+                "      message: '${3:Text input is required}'",
+                "    });",
+                "  }",
+                "  ",
+                "  $0",
+                "  ",
+                "  return synapse.success({",
+                "    message: '${4:Success!}',",
+                "    data: text",
+                "  });",
+                "});"
+            ],
+            description: 'Register a new Synapse intent handler with input extraction and error checks'
+        },
+        'Synapse Authenticated Fetch': {
+            prefix: 'syn-fetch',
+            body: [
+                "const res = await synapse.fetch('${1:https://api.example.com/endpoint}', {",
+                "  method: '${2|GET,POST,PUT,DELETE|}',",
+                "  headers: { 'Content-Type': 'application/json' },",
+                "  connection: '${3:connection_alias}',",
+                "  body: JSON.stringify({ ${4:key}: ${5:value} })",
+                "});",
+                "",
+                "if (!res.ok) {",
+                "  const err = await res.json().catch(() => ({}));",
+                "  return synapse.fail({",
+                "    reason: 'api_error',",
+                "    message: err.message || 'Request failed with status ' + res.status",
+                "  });",
+                "}",
+                "",
+                "const data = await res.json();"
+            ],
+            description: 'Make an authenticated HTTP request using a connection declared in manifest.json'
+        },
+        'Synapse User Prompt': {
+            prefix: 'syn-prompt',
+            body: [
+                "if (!ctx.execution?.capabilities?.prompt) {",
+                "  return synapse.fail({",
+                "    reason: 'execution_error',",
+                "    message: 'Host does not support interactive prompts'",
+                "  });",
+                "}",
+                "",
+                "const answer = await synapse.prompt({",
+                "  message: '${1:Please choose an option:}',",
+                "  fields: [",
+                "    {",
+                "      name: '${2:choice}',",
+                "      type: 'select',",
+                "      label: '${3:Option}',",
+                "      required: true,",
+                "      options: [",
+                "        { value: '${4:val1}', label: '${5:Label 1}' },",
+                "        { value: '${6:val2}', label: '${7:Label 2}' }",
+                "      ]",
+                "    }",
+                "  ]",
+                "});",
+                "",
+                "if (answer.cancelled) {",
+                "  return synapse.fail({ reason: 'cancelled', message: 'User cancelled prompt' });",
+                "}",
+                "const selected = answer.values.${2:choice};"
+            ],
+            description: 'Ask the user a structured question with interactive prompt'
+        },
+        'Synapse MCP Call Tool': {
+            prefix: 'syn-mcp',
+            body: [
+                "const result = await synapse.mcp.callTool(",
+                "  '${1:server_id}',",
+                "  '${2:tool_name}',",
+                "  {",
+                "    ${3:param}: ${4:value}",
+                "  },",
+                "  { timeoutMs: 15000 }",
+                ");",
+                "",
+                "if (!result.success) {",
+                "  return synapse.fail({",
+                "    reason: 'mcp_error',",
+                "    message: result.error || 'MCP tool execution failed'",
+                "  });",
+                "}",
+                "",
+                "const data = result.data;"
+            ],
+            description: 'Call a tool on a hosted MCP server declared in manifest.mcp.servers'
+        },
+        'Synapse Persistent Storage': {
+            prefix: 'syn-storage',
+            body: [
+                "await synapse.storage.set('${1:key}', ${2:value});",
+                "const val = await synapse.storage.get('${1:key}');"
+            ],
+            description: 'Store and retrieve persistent plugin state'
+        },
+        'Synapse UI Sheet': {
+            prefix: 'syn-ui',
+            body: [
+                "const html = `",
+                "  <style>",
+                "    body { font-family: system-ui, sans-serif; padding: 16px; margin: 0; }",
+                "    button { padding: 10px 16px; background: #0070f3; color: white; border: none; border-radius: 6px; cursor: pointer; }",
+                "  </style>",
+                "  <div>",
+                "    <h3>${1:Title}</h3>",
+                "    <p>${2:Content}</p>",
+                "    <button onclick=\"SynapseBridge.postMessage({ action: 'confirm' })\">Confirm</button>",
+                "  </div>",
+                "`;",
+                "",
+                "const uiResult = await synapse.ui.show(html, {",
+                "  title: '${1:Title}',",
+                "  style: 'sheet'",
+                "});"
+            ],
+            description: 'Show an interactive HTML UI sheet with SynapseBridge return'
+        }
+    };
+
+    fs.writeFileSync(
+        path.join(dir, '.vscode', 'synapse.code-snippets'),
+        JSON.stringify(snippets, null, 2) + '\n'
+    );
+
+    // =========================================================================
+    // .vscode/extensions.json — editor recommendations
+    // =========================================================================
+    const extensions = {
+        recommendations: [
+            'dbaeumer.vscode-eslint'
+        ]
+    };
+
+    fs.writeFileSync(
+        path.join(dir, '.vscode', 'extensions.json'),
+        JSON.stringify(extensions, null, 2) + '\n'
+    );
+
+    // =========================================================================
     // README.md — comprehensive plugin documentation
     // =========================================================================
-
     const readme = `# ${name}
 
 A Synapse plugin.
 
-## Development Setup
+## In-Editor Developer Assistance
 
-This plugin comes with full editor support out of the box:
+This project comes pre-configured with full developer tooling out of the box:
 
-- **Autocomplete** — Type \`synapse.\` in \`plugin.js\` and see all available methods
-- **Hover docs** — Hover over any method for documentation and examples
-- **Type checking** — Errors are caught in your editor before runtime
-- **Manifest validation** — \`manifest.json\` has autocomplete for all fields
-
-### Prerequisites
-
-Open this folder in VS Code (or any editor with TypeScript support).
-IntelliSense works automatically — no \`npm install\` required.
+- **Autocomplete & IntelliSense**: Type \`synapse.\` in \`plugin.js\` to see all methods and APIs.
+- **Hover Documentation**: Hover over any method or parameter for descriptions and real-world examples.
+- **Type Checking**: Errors are caught in your editor before runtime via TypeScript/JSDoc.
+- **Manifest Validation**: \`manifest.json\` has schema autocomplete for permissions, connections, and hosted MCP servers.
+- **Code Snippets**: Type \`syn-handler\`, \`syn-fetch\`, \`syn-prompt\`, or \`syn-mcp\` to insert pre-built code blocks.
 
 ## Plugin Structure
 
 \`\`\`
 ${name}/
-├── manifest.json          ← Plugin metadata and action contracts
-├── plugin.js              ← Plugin code (your logic goes here)
-├── jsconfig.json          ← Editor config for IntelliSense
-├── synapse-global.d.ts    ← SDK type definitions (do not edit)
-├── README.md              ← This file
-└── .vscode/
-    └── settings.json      ← VS Code settings
+├── .synapse/
+│   ├── manifest.schema.json  ← Local manifest schema for autocomplete
+│   └── synapse-global.d.ts   ← Full SDK type definitions
+├── .vscode/
+│   ├── settings.json         ← Editor settings
+│   └── synapse.code-snippets ← Code snippets (syn-*)
+├── jsconfig.json             ← IntelliSense configuration
+├── manifest.json             ← Plugin metadata and capability contracts
+├── plugin.js                 ← Plugin code (your logic goes here)
+└── README.md                 ← This file
 \`\`\`
 
-## Triggers
+## Testing Locally
 
-- \`${triggerName}\` — Main action trigger
+Run your plugin directly from the CLI without needing a mobile device:
+
+\`\`\`bash
+synapse run ${triggerName} --text "Sample input text"
+\`\`\`
 
 ## Packaging
 
@@ -267,69 +406,7 @@ ${name}/
 synapse package .
 \`\`\`
 
-This creates a \`.synx\` file that can be installed in Synapse.
-
-## SDK Quick Reference
-
-\`\`\`javascript
-// Intent handling
-synapse.register('intent_name', async (ctx) => { ... });
-synapse.success({ data });
-synapse.fail({ reason: '...', message: '...' });
-synapse.log('debug message');
-
-// Network (all requests proxied through host)
-const res = await synapse.fetch(url, { method, headers, body, connection: 'alias' });
-await res.json();
-await res.text();
-res.ok / res.status / res.statusText
-
-// Structured prompts (declarative — host renders on current surface)
-const answer = await synapse.prompt({
-  message: 'Which playlist?',
-  fields: [{ name: 'playlist', type: 'select', label: 'Playlist', options: [...] }]
-});
-if (!answer.cancelled) console.log(answer.values.playlist);
-
-// UI (explicit HTML — best for share-capture flows)
-const result = await synapse.ui.show(html, { title, width, height });
-await synapse.ui.toast('message');
-const yes = await synapse.ui.confirm('question?');
-
-// Connections (host-managed OAuth, API keys, and MCP OAuth)
-await synapse.connections.connect('alias');
-await synapse.connections.isConnected('alias');
-await synapse.connections.disconnect('alias');
-
-// Storage (persistent, per-plugin)
-await synapse.storage.set('key', value);
-const val = await synapse.storage.get('key');
-await synapse.storage.delete('key');
-
-// Config (encrypted settings from manifest.json)
-const apiKey = await synapse.config.get('key');
-
-// System (platform-specific)
-const platform = await synapse.system.platform();
-await synapse.system.runShortcut('name', input);          // iOS/macOS
-await synapse.system.sendIntent({ action, extras });      // Android
-await synapse.system.runAppleScript('tell app ...');      // macOS (requires 'applescript' permission)
-await synapse.system.calendar.getEvents({ startDate, endDate }); // iOS/macOS (requires 'calendar' permission)
-await synapse.system.calendar.createEvent({ title, startDate, endDate });
-
-// MCP (Model Context Protocol — host-managed tool servers)
-const result = await synapse.mcp.callTool('server-name', 'tool-name', { arg: value });
-if (result.success) {
-  console.log(result.data);   // typed as TResponse
-} else {
-  console.error(result.error, result.code);  // e.g. 'BRIDGE_ERROR'
-}
-
-// File uploads
-await synapse.upload({ fileRef, url });
-\`\`\`
-
-For full documentation, type \`synapse.\` in your editor and explore with autocomplete!
+Creates a \`.synx\` file ready for the Synapse app.
 `;
 
     fs.writeFileSync(path.join(dir, 'README.md'), readme);
@@ -338,42 +415,54 @@ For full documentation, type \`synapse.\` in your editor and explore with autoco
 }
 
 /**
- * Copy the SDK type definitions into the plugin directory.
- * Looks for synapse-global.d.ts in several possible locations
- * relative to where the CLI is installed.
+ * Copy SDK type definitions into .synapse/ inside the plugin directory.
  */
 function copyTypeDefs(pluginDir: string): void {
+    const targetPath = path.join(pluginDir, '.synapse', 'synapse-global.d.ts');
     const possiblePaths = [
-        // When CLI is run from the SDK repo (development)
         path.resolve(__dirname, '../../../types/synapse-global.d.ts'),
-        // When CLI is run from the SDK repo (dist)
         path.resolve(__dirname, '../../types/synapse-global.d.ts'),
-        // When installed as a package alongside @synapse/sdk
-        path.resolve(__dirname, '../../../sdk/types/synapse-global.d.ts'),
-        // Fallback: look up from CWD
+        path.resolve(__dirname, '../types/synapse-global.d.ts'),
         path.resolve(process.cwd(), 'types/synapse-global.d.ts'),
+        path.resolve(process.cwd(), '../types/synapse-global.d.ts'),
     ];
 
     for (const srcPath of possiblePaths) {
         if (fs.existsSync(srcPath)) {
-            fs.copyFileSync(srcPath, path.join(pluginDir, 'synapse-global.d.ts'));
+            fs.copyFileSync(srcPath, targetPath);
             return;
         }
     }
 
-    // If we can't find the type definitions, write a stub with a helpful comment
-    const stub = `// Synapse SDK Type Definitions
-//
-// This file should contain the full Synapse SDK type definitions.
-// To get the latest version, copy synapse-global.d.ts from the
-// Synapse SDK repository: types/synapse-global.d.ts
-//
-// Or run: synapse init --refresh-types
+    // Fallback stub if types not located
+    const stub = `// Synapse SDK Type Definitions\ndeclare const synapse: any;\ndeclare const SynapseBridge: { postMessage(data: any): void };\n`;
+    fs.writeFileSync(targetPath, stub);
+}
 
-/** @type {any} */
-declare const synapse: any;
-declare const SynapseBridge: { postMessage(data: any): void };
-`;
+/**
+ * Copy manifest.schema.json into .synapse/ inside the plugin directory.
+ */
+function copyManifestSchema(pluginDir: string): void {
+    const targetPath = path.join(pluginDir, '.synapse', 'manifest.schema.json');
+    const possiblePaths = [
+        path.resolve(__dirname, '../../../schemas/manifest.schema.json'),
+        path.resolve(__dirname, '../../schemas/manifest.schema.json'),
+        path.resolve(__dirname, '../schemas/manifest.schema.json'),
+        path.resolve(process.cwd(), 'schemas/manifest.schema.json'),
+        path.resolve(process.cwd(), '../schemas/manifest.schema.json'),
+    ];
 
-    fs.writeFileSync(path.join(pluginDir, 'synapse-global.d.ts'), stub);
+    for (const srcPath of possiblePaths) {
+        if (fs.existsSync(srcPath)) {
+            fs.copyFileSync(srcPath, targetPath);
+            return;
+        }
+    }
+
+    // Fallback minimal schema
+    fs.writeFileSync(targetPath, JSON.stringify({
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": ["manifestVersion", "id", "name", "version", "actions"]
+    }, null, 2));
 }
