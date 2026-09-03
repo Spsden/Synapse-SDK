@@ -47,11 +47,13 @@ async function addToNotion(ctx) {
       {
         pages: [
           {
-            title,
-            ...(content ? { content, markdown: content } : {}),
-            ...(parent ? { parent } : {}),
+            properties: {
+              title,
+            },
+            ...(content ? { content } : {}),
           },
         ],
+        ...(parent ? { parent } : {}),
       },
       { timeoutMs: 20000 },
     );

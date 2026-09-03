@@ -256,7 +256,7 @@ function run(name, fn) {
         assert('called the notion MCP server once', state.mcpCalls.length === 1 && state.mcpCalls[0].serverName === 'notion');
         assert('used the allowlisted tool', state.mcpCalls[0] && state.mcpCalls[0].toolName === 'notion-create-pages');
         const page = state.mcpCalls[0] && state.mcpCalls[0].arguments.pages[0];
-        assert('page title came from the entity', page && page.title === 'Captured idea');
+        assert('page title came from the entity', page && (page.properties?.title || page.title) === 'Captured idea');
         assert('page content fell back to shared text', page && page.content === 'Captured text');
         done(true);
     });
