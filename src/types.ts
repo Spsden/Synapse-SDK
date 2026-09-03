@@ -239,7 +239,7 @@ export interface BridgeMessage {
 export type ConfigFieldType = 'text' | 'password' | 'number' | 'boolean' | 'select';
 
 /**
- * Config field definition from plugin.json manifest.
+ * Config field definition from manifest.json manifest.
  */
 export interface ConfigField {
     /** Unique key for the config value */
@@ -266,7 +266,7 @@ export interface ConfigField {
 export type AuthType = 'oauth2' | 'api_key' | 'none';
 
 /**
- * Auth configuration from plugin.json manifest.
+ * Auth configuration from manifest.json manifest.
  */
 export interface AuthConfig {
     /** Type of authentication */

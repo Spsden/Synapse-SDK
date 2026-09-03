@@ -449,13 +449,13 @@ export class Synapse {
     /**
      * Plugin configuration for API keys and user settings.
      * Values are stored encrypted and scoped to the plugin.
-     * Config fields are declared in plugin.json and the host auto-generates UI.
+     * Config fields are declared in manifest.json and the host auto-generates UI.
      */
     config = {
         /**
          * Get a config value.
          * 
-         * @param key - Config key as declared in plugin.json
+         * @param key - Config key as declared in manifest.json
          * @returns The config value or null if not set
          * 
          * @example
@@ -493,7 +493,7 @@ export class Synapse {
          * Internally, it uses try-catch. If a catastrophic execution, bridge, or network error occurs, it catches the error
          * and returns it as a wrapped success: false result so plugins can handle failures gracefully without crashing.
          * 
-         * @param serverName - Name of the MCP server as declared in plugin.json
+         * @param serverName - Name of the MCP server as declared in manifest.json
          * @param toolName - Name of the tool to execute
          * @param args - Arguments to pass to the tool (JSON-serializable)
          * @param options - Execution options (timeout, routing policy)
