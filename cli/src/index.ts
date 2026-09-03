@@ -46,9 +46,18 @@ program
                 console.log(chalk.gray(`  Version: ${result.manifest.version}`));
                 const triggers = result.manifest.actions.flatMap((action) => action.triggers);
                 console.log(chalk.gray(`  Triggers: ${triggers.join(', ')}`));
+
+                if (result.warnings.length > 0) {
+                    console.log();
+                    console.log(chalk.yellow(`  Warnings:`));
+                    result.warnings.forEach(warn => console.log(chalk.yellow(`  ⚠ ${warn}`)));
+                }
             } else {
                 console.error(chalk.red(`✗ Plugin validation failed:`));
                 result.errors.forEach(err => console.error(chalk.red(`  - ${err}`)));
+                if (result.warnings.length > 0) {
+                    result.warnings.forEach(warn => console.warn(chalk.yellow(`  ⚠ ${warn}`)));
+                }
                 process.exit(1);
             }
         } catch (error: any) {

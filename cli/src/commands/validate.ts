@@ -74,6 +74,10 @@ async function validateDirectory(dir: string): Promise<ValidationResult> {
         }
     }
 
+    // Cross-validate code with manifest contracts
+    const pluginContent = fs.readFileSync(pluginPath, 'utf-8');
+    validateCodeAgainstManifest(manifest, pluginContent, errors, warnings);
+
     // Check optional files
     if (!fs.existsSync(path.join(dir, 'icon.png'))) {
         warnings.push('icon.png not found (optional)');
@@ -140,6 +144,10 @@ async function validateSynxFile(filePath: string): Promise<ValidationResult> {
             errors.push(`Content hash mismatch: expected ${manifest.security.contentHash}, got ${actualHash}`);
         }
     }
+
+    // Cross-validate code with manifest contracts
+    const pluginContent = (await pluginEntry!.buffer()).toString('utf-8');
+    validateCodeAgainstManifest(manifest, pluginContent, errors, warnings);
 
     // Check for optional files
     const hasIcon = directory.files.some(f => f.path === 'icon.png');
@@ -449,4 +457,64 @@ function isLocalOrPrivateHost(hostname: string): boolean {
             host.startsWith('fe80:');
     }
     return false;
+}
+
+/**
+ * Cross-validate plugin code (plugin.js) against manifest declarations.
+ */
+export function validateCodeAgainstManifest(
+    manifest: PluginManifest,
+    code: string,
+    errors: string[],
+    warnings: string[]
+): void {
+    const permissions = manifest.security?.permissions || [];
+
+    // 1. Check triggers
+    const allTriggers = manifest.actions?.flatMap(a => a.triggers) || [];
+    for (const trigger of allTriggers) {
+        if (!code.includes(trigger)) {
+            warnings.push(`Action trigger "${trigger}" declared in manifest.json is not found in plugin.js.`);
+        }
+    }
+
+    // 2. Check connections
+    const connectionRegex = /connection\s*:\s*['"]([a-z0-9_-]+)['"]/g;
+    let match: RegExpExecArray | null;
+    const declaredConnections = new Set(manifest.connections?.map(c => c.alias) || []);
+    while ((match = connectionRegex.exec(code)) !== null) {
+        const alias = match[1];
+        if (!declaredConnections.has(alias)) {
+            warnings.push(`Connection alias "${alias}" used in plugin.js is not declared under manifest.connections.`);
+        }
+    }
+
+    // 3. Check MCP calls
+    const mcpRegex = /synapse\.mcp\.callTool\(\s*['"]([a-z0-9_-]+)['"]\s*,\s*['"]([a-z0-9_-]+)['"]/g;
+    const declaredMcpServers = new Set(manifest.mcp?.servers?.map(s => s.id) || []);
+    while ((match = mcpRegex.exec(code)) !== null) {
+        const serverId = match[1];
+        const toolName = match[2];
+
+        if (!permissions.includes('mcp')) {
+            warnings.push(`plugin.js calls synapse.mcp.callTool() but "mcp" permission is not listed in manifest.security.permissions.`);
+        }
+
+        if (!declaredMcpServers.has(serverId)) {
+            warnings.push(`plugin.js calls MCP server "${serverId}", but it is not declared under manifest.mcp.servers.`);
+        }
+    }
+
+    // 4. Check permissions
+    if (code.includes('synapse.fetch(') && !permissions.includes('network')) {
+        warnings.push(`plugin.js calls synapse.fetch() but "network" permission is not listed in manifest.security.permissions.`);
+    }
+
+    if (code.includes('synapse.system.calendar') && !permissions.includes('calendar')) {
+        warnings.push(`plugin.js calls calendar APIs but "calendar" permission is not listed in manifest.security.permissions.`);
+    }
+
+    if (code.includes('synapse.system.runAppleScript') && !permissions.includes('applescript')) {
+        warnings.push(`plugin.js calls runAppleScript() but "applescript" permission is not listed in manifest.security.permissions.`);
+    }
 }
