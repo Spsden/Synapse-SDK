@@ -1,5 +1,5 @@
 // @ts-check
-/// <reference path="../types/synapse-global.d.ts" />
+/// <reference path="../../types/synapse-global.d.ts" />
 
 // Create GitHub Issue - Synapse Plugin
 

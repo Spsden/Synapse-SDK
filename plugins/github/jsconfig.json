@@ -7,7 +7,7 @@
   },
   "include": [
     "*.js",
-    "../types/synapse-global.d.ts"
+    "../../types/synapse-global.d.ts"
   ],
   "exclude": [
     "node_modules"

@@ -197,7 +197,7 @@ const waitFor = (getResult) => new Promise((resolve) => {
         state.fetchCalls = []; state.promptCalls = []; state.uiShowCalls = []; state.addedUris = null; state.finishedResults = [];
         let finished;
         const context = makeContext({ onFinished: (r) => (finished = r) });
-        loadPlugin(context, 'spotify_plugin');
+        loadPlugin(context, 'plugins/spotify');
         dispatch(context, 'add_to_playlist', {
             input: { type: 'text', text: 'test song' },
             llm: { intent: 'add_to_playlist', entities: { query: 'test song', playlist: 'road' } },
@@ -224,7 +224,7 @@ const waitFor = (getResult) => new Promise((resolve) => {
             uiAnswer: { action: 'selected', id: 'spotify:track:t2' },
             onFinished: (r) => (finished = r),
         });
-        loadPlugin(context, 'spotify_plugin');
+        loadPlugin(context, 'plugins/spotify');
         dispatch(context, 'add_to_playlist', {
             input: { type: 'text', text: 'test song' },
             llm: { intent: 'add_to_playlist', entities: { query: 'test song' } },
@@ -247,7 +247,7 @@ const waitFor = (getResult) => new Promise((resolve) => {
             textAnswer: 'Smoke test title',
             onFinished: (r) => (finished = r),
         });
-        loadPlugin(context, 'github_plugin');
+        loadPlugin(context, 'plugins/github');
         dispatch(context, 'file_github_issue', {
             input: { type: 'url', url: 'https://github.com/owner/repo' },
             llm: { intent: 'file_github_issue', entities: {} },
@@ -294,7 +294,7 @@ const waitFor = (getResult) => new Promise((resolve) => {
         state.fetchCalls = []; state.finishedResults = [];
         let finished;
         const context = makeContext({ onFinished: (r) => (finished = r) });
-        loadPlugin(context, 'spotify_plugin');
+        loadPlugin(context, 'plugins/spotify');
         dispatch(context, 'add_to_playlist', {
             input: { type: 'text' },
             llm: { intent: 'add_to_playlist', entities: {} },

@@ -1,5 +1,5 @@
 {
-  "$schema": "../schemas/manifest.schema.json",
+  "$schema": "../../schemas/manifest.schema.json",
   "manifestVersion": 2,
   "id": "com.spotify.add",
   "name": "Add to Spotify Playlist",
