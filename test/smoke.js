@@ -120,6 +120,15 @@ function makeHost(context, behavior) {
                 const call = msg.payload;
                 if (call.serverName === 'notion' && call.toolName === 'notion-create-pages') {
                     reply({ success: true, data: { id: 'page-1', url: 'https://notion.so/page-1' } });
+                } else if (call.serverName === 'notion' && call.toolName === 'notion-search') {
+                    reply({
+                        success: true,
+                        data: {
+                            results: [
+                                { id: 'db-1', title: [{ plain_text: 'Meeting Notes' }], object: 'database', url: 'https://notion.so/db-1' }
+                            ]
+                        }
+                    });
                 } else {
                     reply({ success: false, error: `No mock for ${call.serverName}.${call.toolName}` });
                 }
@@ -289,7 +298,30 @@ const waitFor = (getResult) => new Promise((resolve) => {
         done(true);
     });
 
-    // --- Scenario 5: failures complete once --------------------------------
+    // --- Scenario 5: notion plugin, MCP database search -------------------
+    await run('notion: searches databases via the notion-search MCP tool', async (done) => {
+        state.fetchCalls = []; state.mcpCalls = []; state.finishedResults = [];
+        let finished;
+        const context = makeContext({ onFinished: (r) => (finished = r) });
+        loadPlugin(context, 'plugins/notion');
+        dispatch(context, 'search_notion', {
+            input: { type: 'text', text: 'Meeting' },
+            llm: { intent: 'search_notion', entities: { query: 'Meeting', filter: 'database' } },
+            execution: { surface: 'chat' },
+        });
+        finished = await waitFor(() => finished);
+        assert('run completed', Boolean(finished));
+        assert('succeeded', finished && finished.status === 'success');
+        assert('called the notion MCP server once', state.mcpCalls.length === 1 && state.mcpCalls[0].serverName === 'notion');
+        assert('used the notion-search tool', state.mcpCalls[0] && state.mcpCalls[0].toolName === 'notion-search');
+        assert('queried with filter database', state.mcpCalls[0].arguments.filter && state.mcpCalls[0].arguments.filter.value === 'database');
+        assert('returned database results', finished && finished.data && finished.data.count === 1);
+        assert('extracted database title', finished.data.results[0].title === 'Meeting Notes');
+        assert('emitted exactly one completion result', state.finishedResults.length === 1);
+        done(true);
+    });
+
+    // --- Scenario 6: failures complete once --------------------------------
     await run('spotify: validation failure emits one completion result', async (done) => {
         state.fetchCalls = []; state.finishedResults = [];
         let finished;
