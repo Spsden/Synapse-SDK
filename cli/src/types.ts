@@ -4,7 +4,7 @@
  * Mirrors schemas/manifest.schema.json and src/types.ts.
  */
 
-export type ConnectionType = 'oauth2' | 'api_key' | 'mcp_oauth' | 'none';
+export type ConnectionType = 'oauth2' | 'api_key' | 'none';
 
 /** A remote MCP server owned by the plugin package author. */
 export interface HostedMcpServer {

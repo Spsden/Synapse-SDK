@@ -277,7 +277,7 @@ export interface AuthConfig {
     scopes?: string[];
 }
 
-export type ConnectionType = 'oauth2' | 'api_key' | 'mcp_oauth' | 'none';
+export type ConnectionType = 'oauth2' | 'api_key' | 'none';
 
 export interface ConnectionRequirement {
     alias: string;

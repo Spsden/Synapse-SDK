@@ -246,9 +246,9 @@ export function validateManifest(manifest: PluginManifest, errors: string[], war
             } else if (!/^[a-z][a-z0-9_-]*$/.test(connection.provider)) {
                 errors.push(`manifest.connections[${index}].provider must match ^[a-z][a-z0-9_-]*$`);
             }
-            if (!['oauth2', 'api_key', 'mcp_oauth', 'none'].includes(connection.type)) {
+            if (!['oauth2', 'api_key', 'none'].includes(connection.type)) {
                 errors.push(
-                    `manifest.connections[${index}].type must be one of: oauth2, api_key, mcp_oauth, none`,
+                    `manifest.connections[${index}].type must be one of: oauth2, api_key, none`,
                 );
             }
         });

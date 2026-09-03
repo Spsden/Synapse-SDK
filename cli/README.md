@@ -170,7 +170,7 @@ await synapse.upload({ fileRef, url });
 The `manifest.json` follows a v2 schema. Key sections:
 
 - **security**: `allowedDomains`, `permissions`, `allowedApps`, `contentHash`
-- **connections**: Named user connections (oauth2, api_key, mcp_oauth, none)
+- **connections**: Named user connections (oauth2, api_key, none). Hosted MCP OAuth is declared by `mcp.servers`.
 - **config**: User-configurable settings (text, password, number, boolean, select)
 - **actions**: Intent triggers, input/output schemas, and capability requirements
 - **categories**: Marketplace categories (productivity, communication, etc.)
