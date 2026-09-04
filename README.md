@@ -203,9 +203,8 @@ await synapse.auth.logout('jira');
  
 ### Authenticated Requests
 
-Access tokens are never exposed to plugins. Use the `provider` option
-in `synapse.fetch` or `synapse.upload` to have the host inject the
-Authorization header.
+Access tokens are never exposed to plugins. Use the `provider` option in
+`synapse.fetch` to have the host inject the Authorization header.
 
 ```javascript
 const res = await synapse.fetch('https://api.example.com/data', {
@@ -230,23 +229,6 @@ await synapse.storage.delete('defaultProject');
 
 // Clear all
 await synapse.storage.clear();
-```
-
-### `synapse.upload(params)`
-
-Upload files captured by the host.
-
-```javascript
-const result = await synapse.upload({
-  fileRef: ctx.input.imageRef,  // blob://...
-  url: 'https://api.example.com/attachments',
-  fieldName: 'file',
-  formFields: { ticketId: 'PROJ-123' }
-});
-
-if (result.success) {
-  console.log('Uploaded!', result.response);
-}
 ```
 
 ### Result Helpers
@@ -277,7 +259,6 @@ interface SynapseContext {
   input: {
     type: 'image' | 'text' | 'url' | 'file' | 'mixed';
     text?: string;        // OCR/extracted text
-    imageRef?: string;    // blob:// reference for uploads
     url?: string;         // Shared URL
     sourceApp?: string;   // Source app bundle ID
   };

@@ -27,8 +27,6 @@ export interface SynapseContext {
         type: 'image' | 'text' | 'url' | 'file' | 'mixed';
         /** Raw or OCR-extracted text content */
         text?: string;
-        /** Reference to image for uploads (blob://...) */
-        imageRef?: string;
         /** Original URL if a link was shared */
         url?: string;
         /** Source application package/bundle ID */
@@ -164,41 +162,6 @@ export interface SynapseResponseData {
 
 /** Value types that can be stored */
 export type StorageValue = string | number | boolean | object | null;
-
-// =============================================================================
-// Upload Types
-// =============================================================================
-
-/**
- * Parameters for file uploads.
- */
-export interface UploadParams {
-    /** Reference to the file (blob://...) */
-    fileRef: string;
-    /** Destination URL */
-    url: string;
-    /** HTTP method (defaults to POST) */
-    method?: 'POST' | 'PUT';
-    /** Additional headers */
-    headers?: Record<string, string>;
-    /** Form field name for the file (defaults to 'file') */
-    fieldName?: string;
-    /** Additional form fields to include */
-    formFields?: Record<string, string>;
-    /** OAuth provider to use for Authorization header (host-injected) */
-    provider?: string;
-}
-
-/**
- * Result of a file upload.
- */
-export interface UploadResult {
-    success: boolean;
-    /** Response from the server */
-    response?: any;
-    /** Error message if failed */
-    error?: string;
-}
 
 // =============================================================================
 // Internal Bridge Types

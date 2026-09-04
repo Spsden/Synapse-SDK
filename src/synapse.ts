@@ -5,8 +5,6 @@ import {
     SynapseResult,
     SynapseRequestInit,
     SynapseResponseData,
-    UploadParams,
-    UploadResult,
     StorageValue,
     SynapsePlatform,
     AppleScriptOptions,
@@ -705,30 +703,6 @@ export class Synapse {
             },
         },
     };
-
-    // =========================================================================
-    // Upload
-    // =========================================================================
-
-    /**
-     * Upload a file to a remote server.
-     * Used for uploading images/attachments captured by the host.
-     * 
-     * @param params - Upload parameters
-     * @returns Upload result with success status and server response
-     * 
-     * @example
-     * const result = await synapse.upload({
-     *   fileRef: ctx.input.imageRef,  // blob://capture_123
-     *   url: 'https://api.example.com/attachments',
-     *   fieldName: 'attachment',
-     *   formFields: { ticketId: 'PROJ-123' },
-     *   provider: 'google'
-     * });
-     */
-    async upload(params: UploadParams): Promise<UploadResult> {
-        return Bridge.send<UploadResult>('upload', params, true);
-    }
 
     // =========================================================================
     // Result Helpers

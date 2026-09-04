@@ -97,7 +97,6 @@ program
     .option('-d, --dir <directory>', 'Plugin directory (default: .)')
     .option('-t, --text <string>', 'Simulated text input')
     .option('-u, --url <string>', 'Simulated URL input')
-    .option('-i, --image <string>', 'Simulated image path/ref')
     .option('-s, --surface <surface>', 'Surface mode: chat or share (default: chat)', 'chat')
     .option('-e, --entity <key=value...>', 'Custom entities (repeatable)', (val: string, prev: string[] = []) => { prev.push(val); return prev; })
     .option('-j, --json <file>', 'JSON file containing full mock context')

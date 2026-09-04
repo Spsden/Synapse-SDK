@@ -12,8 +12,12 @@ typedef SynapseStatusCallback = void Function(String status, dynamic data);
 typedef SynapseToastCallback = void Function(String message, int durationMs);
 
 /// Callback signature for confirmation dialogs.
-typedef SynapseConfirmCallback = Future<bool> Function(
-    String message, String? confirmLabel, String? cancelLabel);
+typedef SynapseConfirmCallback =
+    Future<bool> Function(
+      String message,
+      String? confirmLabel,
+      String? cancelLabel,
+    );
 
 /// Callback signature for authentication requests.
 typedef SynapseAuthCallback = Future<bool> Function(String provider);
@@ -21,8 +25,8 @@ typedef SynapseAuthCallback = Future<bool> Function(String provider);
 /// Callback signature for plugin questions (synapse.prompt()).
 /// [spec] contains `message` and `fields` (name/type/label/options).
 /// Returns a map of field name → answer, or null if the user cancelled.
-typedef SynapsePromptCallback = Future<Map<String, String>?> Function(
-    Map<String, dynamic> spec);
+typedef SynapsePromptCallback =
+    Future<Map<String, String>?> Function(Map<String, dynamic> spec);
 
 /// Reference host for the fjs-native bridge protocol (SDK transport v2).
 ///
@@ -76,16 +80,6 @@ class SynapseHost {
   /// Called to logout from a provider.
   Future<void> Function(String provider)? onAuthLogout;
 
-  /// Called to upload a file. Returns the server response or throws on error.
-  Future<Map<String, dynamic>> Function({
-    required String fileRef,
-    required String url,
-    String method,
-    Map<String, String>? headers,
-    String? fieldName,
-    Map<String, String>? formFields,
-  })? onUpload;
-
   /// Called when a plugin asks the user a structured question.
   /// Render the message + fields on the active surface (chat message,
   /// dialog, or generated form) and return the answers, or null on cancel.
@@ -138,8 +132,10 @@ class SynapseHost {
   }
 
   /// Load a plugin script into the runtime.
-  Future<void> loadPlugin(String pluginSource,
-      {String pluginId = 'default'}) async {
+  Future<void> loadPlugin(
+    String pluginSource, {
+    String pluginId = 'default',
+  }) async {
     _currentPluginId = pluginId;
     await _engine.eval(source: JsCode.code(pluginSource));
   }
@@ -153,7 +149,7 @@ class SynapseHost {
   /// The [params] should follow the SynapseContext structure:
   /// ```dart
   /// {
-  ///   'input': {'type': 'image', 'text': 'OCR text', 'imageRef': 'blob://123'},
+  ///   'input': {'type': 'image', 'text': 'OCR text'},
   ///   'llm': {'intent': 'create_jira_ticket', 'entities': {...}},
   ///   'user': {'locale': 'en-US'}
   /// }
@@ -186,8 +182,7 @@ class SynapseHost {
         options: JsEvalOptions.withPromise(),
       );
       final raw = value.value;
-      final result =
-          raw is Map ? Map<String, dynamic>.from(raw) : null;
+      final result = raw is Map ? Map<String, dynamic>.from(raw) : null;
       if (result != null) {
         onStatusChanged?.call('finished', result);
       }
@@ -208,17 +203,18 @@ class SynapseHost {
   /// transport and the SDK rethrows them as `BridgeError`.
   Future<JsResult> _onBridgeCall(JsValue value) async {
     final raw = value.value;
-    final envelope =
-        raw is Map ? Map<String, dynamic>.from(raw) : null;
+    final envelope = raw is Map ? Map<String, dynamic>.from(raw) : null;
     if (envelope == null || envelope['v'] != 2) {
       return const JsResult.err(JsError.bridge('Malformed bridge envelope.'));
     }
     final type = envelope['type'] as String?;
     if (type == null || type.isEmpty) {
       return const JsResult.err(
-          JsError.bridge('Bridge envelope is missing a type.'));
+        JsError.bridge('Bridge envelope is missing a type.'),
+      );
     }
-    final payload = (envelope['payload'] as Map?)?.cast<String, dynamic>() ??
+    final payload =
+        (envelope['payload'] as Map?)?.cast<String, dynamic>() ??
         const <String, dynamic>{};
 
     debugPrint('[SynapseHost] Received: $type');
@@ -228,17 +224,18 @@ class SynapseHost {
         reply == null ? const JsValue.none() : JsValue.from(reply),
       );
     } on _BridgeReject catch (reject) {
-      return JsResult.ok(JsValue.from({
-        '__synapseError': {'code': reject.code, 'message': reject.message},
-      }));
+      return JsResult.ok(
+        JsValue.from({
+          '__synapseError': {'code': reject.code, 'message': reject.message},
+        }),
+      );
     } catch (error) {
       debugPrint('[SynapseHost] Bridge Error: $error');
-      return JsResult.ok(JsValue.from({
-        '__synapseError': {
-          'code': 'EXECUTION_ERROR',
-          'message': '$error',
-        },
-      }));
+      return JsResult.ok(
+        JsValue.from({
+          '__synapseError': {'code': 'EXECUTION_ERROR', 'message': '$error'},
+        }),
+      );
     }
   }
 
@@ -249,7 +246,9 @@ class SynapseHost {
   /// Routes one request to its handler. Notifications return null; failures
   /// throw [_BridgeReject] so the SDK sees a structured rejection.
   Future<dynamic> _handleBridgeMessage(
-      String type, Map<String, dynamic> payload) async {
+    String type,
+    Map<String, dynamic> payload,
+  ) async {
     switch (type) {
       // Network
       case 'fetch':
@@ -282,23 +281,19 @@ class SynapseHost {
         return _storage[_currentPluginId]?[payload['key'] as String? ?? ''];
 
       case 'storage_set':
-        _storage
-            .putIfAbsent(_currentPluginId, () => {})[payload['key'] as String? ?? ''] =
-            payload['value'];
+        _storage.putIfAbsent(
+          _currentPluginId,
+          () => {},
+        )[payload['key'] as String? ?? ''] = payload['value'];
         return null;
 
       case 'storage_delete':
-        _storage[_currentPluginId]
-            ?.remove(payload['key'] as String? ?? '');
+        _storage[_currentPluginId]?.remove(payload['key'] as String? ?? '');
         return null;
 
       case 'storage_clear':
         _storage[_currentPluginId]?.clear();
         return null;
-
-      // Upload
-      case 'upload':
-        return _handleUpload(payload);
 
       // Status
       case 'log':
@@ -308,7 +303,9 @@ class SynapseHost {
       default:
         debugPrint('[SynapseHost] Unknown message type: $type');
         throw const _BridgeReject(
-            'INVALID_REQUEST', 'Unsupported bridge operation.');
+          'INVALID_REQUEST',
+          'Unsupported bridge operation.',
+        );
     }
   }
 
@@ -318,8 +315,7 @@ class SynapseHost {
 
   /// Handle fetch requests from the plugin.
   /// Returns a response matching SynapseResponseData.
-  Future<Map<String, dynamic>> _handleFetch(
-      Map<String, dynamic> req) async {
+  Future<Map<String, dynamic>> _handleFetch(Map<String, dynamic> req) async {
     try {
       final url = Uri.parse(req['url'] as String);
       final method = (req['method'] as String?) ?? 'GET';
@@ -404,7 +400,8 @@ class SynapseHost {
   /// The host decides the surface: chat message, dialog, or generated form.
   /// Resolves with `{cancelled: true}` on cancel or missing callback.
   Future<Map<String, dynamic>> _handlePrompt(
-      Map<String, dynamic> payload) async {
+    Map<String, dynamic> payload,
+  ) async {
     if (onPrompt == null) {
       return {'cancelled': true};
     }
@@ -441,39 +438,12 @@ class SynapseHost {
     final provider = payload['provider'] as String? ?? '';
 
     if (onAuthRequest == null) {
-      throw const _BridgeReject(
-          'HOST_ERROR', 'Authentication not implemented');
+      throw const _BridgeReject('HOST_ERROR', 'Authentication not implemented');
     }
 
     final success = await onAuthRequest!(provider);
     if (!success) {
       throw const _BridgeReject('HOST_ERROR', 'Authentication failed');
-    }
-  }
-
-  // =========================================================================
-  // Upload Handler
-  // =========================================================================
-
-  Future<Map<String, dynamic>> _handleUpload(
-      Map<String, dynamic> payload) async {
-    if (onUpload == null) {
-      return {'success': false, 'error': 'Upload not implemented'};
-    }
-
-    try {
-      final result = await onUpload!(
-        fileRef: payload['fileRef'] as String? ?? '',
-        url: payload['url'] as String? ?? '',
-        method: payload['method'] as String? ?? 'POST',
-        headers: Map<String, String>.from(payload['headers'] ?? {}),
-        fieldName: payload['fieldName'] as String?,
-        formFields: Map<String, String>.from(payload['formFields'] ?? {}),
-      );
-
-      return {'success': true, 'response': result};
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
     }
   }
 

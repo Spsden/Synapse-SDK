@@ -9,7 +9,6 @@ export interface RunOptions {
     dir?: string;
     text?: string;
     url?: string;
-    image?: string;
     surface?: 'chat' | 'share';
     entity?: string[];
     json?: string;
@@ -557,14 +556,12 @@ function buildMockContext(
 
     const text = options.text || '';
     const isUrl = !!options.url;
-    const isImage = !!options.image;
 
     return {
         input: {
-            type: isUrl ? 'url' : (isImage ? 'image' : 'text'),
+            type: isUrl ? 'url' : 'text',
             text: text,
             url: options.url,
-            imageRef: options.image,
             sourceApp: 'synapse.cli.runner'
         },
         llm: {

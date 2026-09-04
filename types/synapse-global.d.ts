@@ -38,8 +38,6 @@ interface SynapseContext {
         type: 'image' | 'text' | 'url' | 'file' | 'mixed';
         /** Raw or OCR-extracted text content */
         text?: string;
-        /** Reference to image for uploads (blob://...) */
-        imageRef?: string;
         /** Original URL if a link was shared */
         url?: string;
         /** Source application package/bundle ID */
@@ -189,50 +187,6 @@ interface SynapseResponse {
 
 /** Value types that can be stored in plugin storage */
 type StorageValue = string | number | boolean | object | null;
-
-// =============================================================================
-// Upload Types
-// =============================================================================
-
-/**
- * Parameters for `synapse.upload()`.
- * 
- * @example
- * const result = await synapse.upload({
- *   fileRef: ctx.input.imageRef,
- *   url: 'https://api.example.com/attachments',
- *   fieldName: 'file',
- *   provider: 'google'
- * });
- */
-interface UploadParams {
-    /** Reference to the file captured by the host (blob://...) */
-    fileRef: string;
-    /** Destination URL for the upload */
-    url: string;
-    /** HTTP method (defaults to POST) */
-    method?: 'POST' | 'PUT';
-    /** Additional headers */
-    headers?: Record<string, string>;
-    /** Form field name for the file (defaults to 'file') */
-    fieldName?: string;
-    /** Additional form fields to include */
-    formFields?: Record<string, string>;
-    /** OAuth provider for Authorization header */
-    provider?: string;
-}
-
-/**
- * Result of a file upload.
- */
-interface UploadResult {
-    /** Whether the upload succeeded */
-    success: boolean;
-    /** Response body from the server */
-    response?: any;
-    /** Error message if failed */
-    error?: string;
-}
 
 // =============================================================================
 // System Types
@@ -529,24 +483,6 @@ interface SynapseSDK {
      * }
      */
     prompt(spec: PromptSpec): Promise<PromptResult>;
-
-    /**
-     * Upload a file to a remote server.
-     * Used for uploading images/attachments captured by the host.
-     * 
-     * @param params - Upload parameters
-     * @returns Upload result with success status and server response
-     * 
-     * @example
-     * const result = await synapse.upload({
-     *   fileRef: ctx.input.imageRef,
-     *   url: 'https://api.example.com/attachments',
-     *   fieldName: 'attachment',
-     *   formFields: { ticketId: 'PROJ-123' },
-     *   provider: 'google'
-     * });
-     */
-    upload(params: UploadParams): Promise<UploadResult>;
 
     /**
      * Create a success result to return from your intent handler.
@@ -928,7 +864,7 @@ declare global {
      * 
      * Provides methods for:
      * - **Intent handling**: `synapse.register()`, `synapse.success()`, `synapse.fail()`
-     * - **Network**: `synapse.fetch()`, `synapse.upload()`
+     * - **Network**: `synapse.fetch()`
      * - **Questions**: `synapse.prompt()` (chat or UI, host decides)
      * - **UI**: `synapse.ui.toast()`, `synapse.ui.confirm()`
      * - **Auth**: `synapse.auth.authenticate()`, `synapse.auth.isAuthenticated()`

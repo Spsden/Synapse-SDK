@@ -181,9 +181,6 @@ if (result.success) {
 } else {
   console.error(result.error, result.code);  // e.g. 'BRIDGE_ERROR'
 }
-
-// File uploads
-await synapse.upload({ fileRef, url });
 ```
 
 ## Manifest Schema

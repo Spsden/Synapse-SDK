@@ -115,7 +115,7 @@ synapse.register('${triggerName}', async (ctx) => {
   synapse.log('${name}: ${triggerName} triggered');
 
   // ── 1. Extract and validate input ──────────────────────────────────────────
-  // ctx.input     — Raw content captured by host (text, imageRef, url, etc.)
+  // ctx.input     — Raw content captured by host (text, URL, source app, etc.)
   // ctx.llm       — AI analysis (intent, entities)
   // ctx.user      — User context (locale, timezone)
   // ctx.execution — Surface context ('chat' | 'share', capabilities)
