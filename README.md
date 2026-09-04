@@ -152,6 +152,11 @@ await res.text()  // Get as text
 
 ### `synapse.prompt(spec)`
 
+Actions that call this API must declare the host requirement
+`{ "kind": "host", "capability": "com.synapse.prompt" }`. Synapse shows that
+the action may ask follow-up questions during tool approval, then renders the
+question as a native form in the conversation.
+
 ```javascript
 const result = await synapse.prompt({
   message: 'Choose an option',

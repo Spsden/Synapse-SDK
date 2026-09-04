@@ -60,6 +60,8 @@ node dist/index.js run my_plugin --dir ../plugins/my-plugin --surface chat
 
 #### Features:
 - **Interactive Prompts**: If your code calls `synapse.prompt()`, the CLI prompts you interactively in the terminal.
+  The action must declare the `com.synapse.prompt` host capability, matching
+  Synapse's runtime policy.
 - **Local Credentials via `.env`**: Put `SYNAPSE_CONNECTION_<ALIAS>=secret_token` or `SYNAPSE_CONFIG_<KEY>=value` in a `.env` file in your plugin folder, and `synapse run` will automatically inject them into `synapse.fetch()` and `synapse.config.get()`.
 - **Trace Output**: Visual colorized execution logs showing fetch calls, MCP tool invocations, storage operations, and the final `synapse.success` or `synapse.fail` result.
 

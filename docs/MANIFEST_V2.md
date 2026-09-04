@@ -39,6 +39,11 @@ Plugins do not need MCP for every integration. Actions may use named OAuth or
 API-key connections, direct allowlisted network calls, and host capabilities
 such as calendar or shortcuts alongside MCP requirements.
 
+An action that calls `synapse.prompt()` declares
+`{ "kind": "host", "capability": "com.synapse.prompt" }`. Tool approval then
+covers follow-up questions for that invocation; Synapse renders each question
+as native conversation UI without a second permission dialog.
+
 Manifest v2 is the only supported plugin contract. `manifestVersion` and
 `actions` are required. Legacy top-level `triggers`, `inputSchema`, `auth`, and
 `mcpServers` fields are rejected by both validation and packaging.

@@ -566,12 +566,10 @@ var SynapseSDK = (() => {
       Bridge.send("log", { message });
     }
     /**
-     * Internal: Called by the host to dispatch an intent.
+     * Internal: Called by the host to dispatch a manifest action ID.
      *
      * Resolves with the handler's SynapseResult so fjs-native hosts can read
-     * the completion value of the awaited call directly. Legacy hosts listen
-     * for the `finished` bridge event instead, which is only emitted when the
-     * native transport is inactive.
+     * the completion value of the awaited call directly.
      *
      * @internal
      */

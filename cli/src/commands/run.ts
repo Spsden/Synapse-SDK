@@ -43,10 +43,12 @@ export async function runPlugin(trigger: string, options: RunOptions = {}): Prom
 
     const manifest: PluginManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
-    // Verify the trigger is declared in manifest
-    const action = manifest.actions.find(a => a.triggers.includes(trigger));
+    // Resolve discovery triggers to the canonical action ID. Synapse invokes
+    // action IDs at runtime; triggers exist only for discovery.
+    const action = manifest.actions.find(a => a.id === trigger)
+        ?? manifest.actions.find(a => a.triggers.includes(trigger));
     if (!action) {
-        console.warn(chalk.yellow(`⚠ Warning: Trigger "${trigger}" is not declared in manifest.json actions.`));
+        throw new Error(`Action or trigger "${trigger}" is not declared in manifest.json.`);
     }
 
     // Load local environment variables from .env or .synapse.env
@@ -57,7 +59,7 @@ export async function runPlugin(trigger: string, options: RunOptions = {}): Prom
     const pluginCode = fs.readFileSync(pluginPath, 'utf8');
 
     // Build mock context
-    const ctx = buildMockContext(trigger, options);
+    const ctx = buildMockContext(action, options);
 
     const logs: string[] = [];
     const calls: Array<{ type: string; details: any }> = [];
@@ -72,7 +74,10 @@ export async function runPlugin(trigger: string, options: RunOptions = {}): Prom
     // In-memory storage for this run
     const storage = new Map<string, any>();
 
-    console.log(chalk.bold(`\n▶ Running intent: ${chalk.cyan(trigger)} in ${chalk.gray(manifest.name)} (${manifest.id})`));
+    console.log(chalk.bold(`\n▶ Running action: ${chalk.cyan(action.id)} in ${chalk.gray(manifest.name)} (${manifest.id})`));
+    if (trigger !== action.id) {
+        console.log(`  ${chalk.gray('Matched trigger:')} ${trigger}`);
+    }
     if (options.text) {
         console.log(`  ${chalk.gray('Input text:')} "${options.text}"`);
     }
@@ -116,6 +121,7 @@ export async function runPlugin(trigger: string, options: RunOptions = {}): Prom
                     type,
                     payload,
                     manifest,
+                    action,
                     env,
                     storage,
                     calls,
@@ -133,8 +139,8 @@ export async function runPlugin(trigger: string, options: RunOptions = {}): Prom
     // 2. Evaluate Plugin
     vm.runInContext(pluginCode, context, { filename: 'plugin.js' });
 
-    // 3. Dispatch the intent using synapse._dispatch
-    const dispatchCode = `synapse._dispatch('${trigger}', ${JSON.stringify(ctx)})`;
+    // 3. Dispatch the canonical action ID using synapse._dispatch
+    const dispatchCode = `synapse._dispatch(${JSON.stringify(action.id)}, ${JSON.stringify(ctx)})`;
 
     try {
         const timeoutMs = options.timeout || 30000;
@@ -220,12 +226,13 @@ async function handleBridgeCall(opts: {
     type: string;
     payload?: any;
     manifest: PluginManifest;
+    action: PluginManifest['actions'][number];
     env: Record<string, string>;
     storage: Map<string, any>;
     calls: Array<{ type: string; details: any }>;
     options: RunOptions;
 }): Promise<any> {
-    const { type, payload, manifest, env, storage, calls, options } = opts;
+    const { type, payload, manifest, action, env, storage, calls, options } = opts;
     calls.push({ type, details: payload });
 
     switch (type) {
@@ -384,6 +391,17 @@ async function handleBridgeCall(opts: {
         }
 
         case 'prompt': {
+            const mayPrompt = action.requirements?.some(
+                requirement => requirement.kind === 'host' && requirement.capability === 'com.synapse.prompt'
+            ) === true;
+            if (!mayPrompt) {
+                return {
+                    __synapseError: {
+                        code: 'PERMISSION_DENIED',
+                        message: 'This action did not declare the com.synapse.prompt capability.'
+                    }
+                };
+            }
             const { message, fields = [] } = payload;
             console.log(chalk.yellow.bold(`\n  [prompt] ${message}`));
 
@@ -517,7 +535,10 @@ function loadLocalEnv(dir: string): Record<string, string> {
 /**
  * Build simulated SynapseContext from CLI flags
  */
-function buildMockContext(trigger: string, options: RunOptions) {
+function buildMockContext(
+    action: PluginManifest['actions'][number],
+    options: RunOptions
+) {
     if (options.json && fs.existsSync(options.json)) {
         try {
             return JSON.parse(fs.readFileSync(options.json, 'utf8'));
@@ -547,7 +568,7 @@ function buildMockContext(trigger: string, options: RunOptions) {
             sourceApp: 'synapse.cli.runner'
         },
         llm: {
-            intent: trigger,
+            intent: action.id,
             entities: {
                 ...(text ? { text, title: text.slice(0, 60) } : {}),
                 ...(options.url ? { url: options.url } : {}),
@@ -562,7 +583,9 @@ function buildMockContext(trigger: string, options: RunOptions) {
         execution: {
             surface: options.surface || 'chat',
             capabilities: {
-                prompt: true
+                prompt: action.requirements?.some(
+                    requirement => requirement.kind === 'host' && requirement.capability === 'com.synapse.prompt'
+                ) === true
             }
         }
     };
