@@ -1,0 +1,213 @@
+{
+  "$schema": "../../schemas/manifest.schema.json",
+  "manifestVersion": 2,
+  "id": "com.synapse.google.calendar",
+  "name": "Google Calendar",
+  "version": "1.0.0",
+  "description": "Create, schedule, quick-add, search, and manage Google Calendar events.",
+  "author": "Synapse",
+  "minSynapseVersion": "1.0.0",
+  "security": {
+    "allowedDomains": ["www.googleapis.com"],
+    "permissions": ["network"]
+  },
+  "connections": [
+    {
+      "alias": "google_calendar",
+      "provider": "google-calendar",
+      "type": "oauth2",
+      "scopes": [
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/calendar.readonly"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "create_event",
+      "description": "Schedule a new event on Google Calendar.",
+      "triggers": ["create_event", "add_to_calendar", "schedule_meeting", "new_calendar_event"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Event title or meeting summary."
+          },
+          "startTime": {
+            "type": "string",
+            "description": "Start time in ISO 8601 format (e.g. 2026-09-07T10:00:00Z)."
+          },
+          "endTime": {
+            "type": "string",
+            "description": "End time in ISO 8601 format (defaults to 1 hour after startTime)."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional notes or event description."
+          },
+          "location": {
+            "type": "string",
+            "description": "Optional meeting location or video call link."
+          },
+          "attendees": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Optional list of attendee email addresses."
+          },
+          "calendarId": {
+            "type": "string",
+            "default": "primary",
+            "description": "Calendar ID (defaults to 'primary')."
+          }
+        },
+        "required": ["title"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "startTime": { "type": "string" },
+          "endTime": { "type": "string" },
+          "link": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "google_calendar" },
+        { "kind": "network", "domains": ["www.googleapis.com"] },
+        { "kind": "host", "capability": "com.synapse.prompt" }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "list_events",
+      "description": "List upcoming events from Google Calendar.",
+      "triggers": ["list_events", "get_calendar_events", "upcoming_events", "show_schedule"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Optional search term to filter events."
+          },
+          "timeMin": {
+            "type": "string",
+            "description": "Optional start time boundary in ISO 8601 (defaults to current time)."
+          },
+          "timeMax": {
+            "type": "string",
+            "description": "Optional end time boundary in ISO 8601."
+          },
+          "maxResults": {
+            "type": "number",
+            "default": 10,
+            "description": "Maximum number of events to return."
+          },
+          "calendarId": {
+            "type": "string",
+            "default": "primary",
+            "description": "Calendar ID (defaults to 'primary')."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "startTime": { "type": "string" },
+                "endTime": { "type": "string" },
+                "location": { "type": "string" },
+                "link": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "google_calendar" },
+        { "kind": "network", "domains": ["www.googleapis.com"] }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "quick_add_event",
+      "description": "Quickly add an event using Google natural language parsing.",
+      "triggers": ["quick_add_event", "quick_schedule", "fast_calendar_add"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Natural language event string (e.g., 'Dinner with Alex at 7pm tomorrow')."
+          },
+          "calendarId": {
+            "type": "string",
+            "default": "primary",
+            "description": "Calendar ID (defaults to 'primary')."
+          }
+        },
+        "required": ["text"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "startTime": { "type": "string" },
+          "link": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "google_calendar" },
+        { "kind": "network", "domains": ["www.googleapis.com"] },
+        { "kind": "host", "capability": "com.synapse.prompt" }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "delete_event",
+      "description": "Cancel or delete an event from Google Calendar.",
+      "triggers": ["delete_event", "cancel_meeting", "remove_event"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "description": "ID of the event to delete. If omitted, prompts user with upcoming events."
+          },
+          "calendarId": {
+            "type": "string",
+            "default": "primary",
+            "description": "Calendar ID (defaults to 'primary')."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "eventId": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "google_calendar" },
+        { "kind": "network", "domains": ["www.googleapis.com"] },
+        { "kind": "host", "capability": "com.synapse.prompt" }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    }
+  ],
+  "categories": ["productivity"],
+  "keywords": ["google", "calendar", "events", "meetings", "schedule"]
+}
+

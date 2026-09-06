@@ -1,0 +1,199 @@
+{
+  "$schema": "../../schemas/manifest.schema.json",
+  "manifestVersion": 2,
+  "id": "com.synapse.google.gmail",
+  "name": "Gmail",
+  "version": "1.0.0",
+  "description": "Send emails, create drafts, search inbox, and review unread messages in Gmail.",
+  "author": "Synapse",
+  "minSynapseVersion": "1.0.0",
+  "security": {
+    "allowedDomains": ["gmail.googleapis.com"],
+    "permissions": ["network"]
+  },
+  "connections": [
+    {
+      "alias": "gmail",
+      "provider": "google-gmail",
+      "type": "oauth2",
+      "scopes": [
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/gmail.compose",
+        "https://www.googleapis.com/auth/gmail.readonly"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "send_email",
+      "description": "Compose and immediately send an email through Gmail.",
+      "triggers": ["send_email", "send_gmail", "compose_and_send_email"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "description": "Recipient email address (or comma-separated addresses)."
+          },
+          "subject": {
+            "type": "string",
+            "description": "Email subject line."
+          },
+          "body": {
+            "type": "string",
+            "description": "Email body content in plain text."
+          },
+          "cc": {
+            "type": "string",
+            "description": "Optional CC recipient email address."
+          },
+          "bcc": {
+            "type": "string",
+            "description": "Optional BCC recipient email address."
+          }
+        },
+        "required": ["to", "body"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "threadId": { "type": "string" },
+          "to": { "type": "string" },
+          "subject": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "gmail" },
+        { "kind": "network", "domains": ["gmail.googleapis.com"] },
+        { "kind": "host", "capability": "com.synapse.prompt" }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "create_draft",
+      "description": "Create a draft email in Gmail without sending it.",
+      "triggers": ["create_draft", "draft_email", "save_email_draft"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "description": "Optional recipient email address."
+          },
+          "subject": {
+            "type": "string",
+            "description": "Draft subject line."
+          },
+          "body": {
+            "type": "string",
+            "description": "Draft email body text."
+          },
+          "cc": {
+            "type": "string",
+            "description": "Optional CC email address."
+          }
+        },
+        "required": ["body"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "subject": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "gmail" },
+        { "kind": "network", "domains": ["gmail.googleapis.com"] },
+        { "kind": "host", "capability": "com.synapse.prompt" }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "search_emails",
+      "description": "Search Gmail messages by query terms or filters.",
+      "triggers": ["search_emails", "search_gmail", "find_emails"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Gmail search query (e.g., 'from:alice', 'is:unread', 'meeting notes')."
+          },
+          "maxResults": {
+            "type": "number",
+            "default": 10,
+            "description": "Maximum number of messages to return."
+          }
+        },
+        "required": ["query"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "count": { "type": "integer" },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "threadId": { "type": "string" },
+                "snippet": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "gmail" },
+        { "kind": "network", "domains": ["gmail.googleapis.com"] }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "list_unread_emails",
+      "description": "List recent unread messages in your Gmail inbox.",
+      "triggers": ["list_unread_emails", "check_inbox", "get_unread_emails"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "maxResults": {
+            "type": "number",
+            "default": 10,
+            "description": "Maximum number of unread emails to inspect."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "threadId": { "type": "string" },
+                "snippet": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "gmail" },
+        { "kind": "network", "domains": ["gmail.googleapis.com"] }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    }
+  ],
+  "categories": ["communication"],
+  "keywords": ["google", "gmail", "email", "messages", "inbox"]
+}
+

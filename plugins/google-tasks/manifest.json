@@ -1,0 +1,185 @@
+{
+  "$schema": "../../schemas/manifest.schema.json",
+  "manifestVersion": 2,
+  "id": "com.synapse.google.tasks",
+  "name": "Google Tasks",
+  "version": "1.0.0",
+  "description": "Create, check off, and track to-do tasks across Google Tasks lists.",
+  "author": "Synapse",
+  "minSynapseVersion": "1.0.0",
+  "security": {
+    "allowedDomains": ["tasks.googleapis.com"],
+    "permissions": ["network"]
+  },
+  "connections": [
+    {
+      "alias": "google_tasks",
+      "provider": "google-tasks",
+      "type": "oauth2",
+      "scopes": [
+        "https://www.googleapis.com/auth/tasks",
+        "https://www.googleapis.com/auth/tasks.readonly"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "create_task",
+      "description": "Add a new task or to-do item to Google Tasks.",
+      "triggers": ["create_task", "add_task", "new_google_task", "add_todo"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title or task description."
+          },
+          "notes": {
+            "type": "string",
+            "description": "Optional notes or details for the task."
+          },
+          "due": {
+            "type": "string",
+            "description": "Optional RFC 3339 due date (e.g. 2026-09-07T00:00:00.000Z)."
+          },
+          "tasklistId": {
+            "type": "string",
+            "default": "@default",
+            "description": "Task list ID (defaults to '@default')."
+          }
+        },
+        "required": ["title"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "due": { "type": "string" },
+          "link": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "google_tasks" },
+        { "kind": "network", "domains": ["tasks.googleapis.com"] },
+        { "kind": "host", "capability": "com.synapse.prompt" }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "list_tasks",
+      "description": "List uncompleted tasks from a Google Tasks list.",
+      "triggers": ["list_tasks", "get_tasks", "show_tasks", "my_tasks"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tasklistId": {
+            "type": "string",
+            "default": "@default",
+            "description": "Task list ID (defaults to '@default')."
+          },
+          "showCompleted": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to include completed tasks."
+          },
+          "maxResults": {
+            "type": "number",
+            "default": 20,
+            "description": "Maximum number of tasks to return."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "status": { "type": "string" },
+                "due": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "google_tasks" },
+        { "kind": "network", "domains": ["tasks.googleapis.com"] }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "complete_task",
+      "description": "Mark a Google Task as completed. Prompts with a task picker if taskId is omitted.",
+      "triggers": ["complete_task", "finish_task", "done_task", "mark_task_completed"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "description": "Task ID to complete. If omitted, prompts user to select from active tasks."
+          },
+          "tasklistId": {
+            "type": "string",
+            "default": "@default",
+            "description": "Task list ID (defaults to '@default')."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "google_tasks" },
+        { "kind": "network", "domains": ["tasks.googleapis.com"] },
+        { "kind": "host", "capability": "com.synapse.prompt" }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "list_tasklists",
+      "description": "List all task lists in Google Tasks.",
+      "triggers": ["list_tasklists", "get_tasklists", "show_tasklists"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "tasklists": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "google_tasks" },
+        { "kind": "network", "domains": ["tasks.googleapis.com"] }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    }
+  ],
+  "categories": ["productivity"],
+  "keywords": ["google", "tasks", "todo", "tasklist", "reminders"]
+}
+

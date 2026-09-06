@@ -3,8 +3,8 @@
   "manifestVersion": 2,
   "id": "com.synapse.notion",
   "name": "Notion",
-  "version": "1.1.0",
-  "description": "Capture notes and discover databases in Notion through its MCP server.",
+  "version": "2.0.0",
+  "description": "Comprehensive Notion suite for pages, databases, quick capture, notes, and search via official MCP.",
   "author": "Synapse",
   "minSynapseVersion": "1.0.0",
   "security": {
@@ -25,7 +25,7 @@
       "key": "notion_parent_id",
       "label": "Notion Parent ID",
       "type": "text",
-      "description": "Optional page, database, or data source ID used as the parent."
+      "description": "Default parent page or database ID used when not specified."
     },
     {
       "key": "notion_parent_type",
@@ -33,41 +33,227 @@
       "type": "select",
       "default": "auto",
       "options": ["auto", "page", "database", "data_source"]
+    },
+    {
+      "key": "notion_default_database_id",
+      "label": "Default Database ID",
+      "type": "text",
+      "description": "Default database ID for creating database pages/rows."
+    },
+    {
+      "key": "notion_daily_notes_page_id",
+      "label": "Daily Notes Parent Page ID",
+      "type": "text",
+      "description": "Parent page ID under which daily notes are stored."
+    },
+    {
+      "key": "notion_quick_capture_page_id",
+      "label": "Quick Capture Page ID",
+      "type": "text",
+      "description": "Default page ID where quick captures are created or nested."
     }
   ],
   "actions": [
     {
-      "id": "add_to_notion",
-      "description": "Create a Notion page from shared text.",
-      "triggers": ["add_to_notion", "save_to_notion"],
+      "id": "create_database_page",
+      "description": "Create a new page/entry in a Notion database with properties.",
+      "triggers": ["create_database_page", "add_database_page", "new_database_row", "add_to_database"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "databaseId": {
+            "type": "string",
+            "description": "Optional database ID. If omitted, prompts the user to select from available databases."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title or primary name for the database entry."
+          },
+          "content": {
+            "type": "string",
+            "description": "Optional Markdown-compatible page body content."
+          },
+          "properties": {
+            "type": "object",
+            "description": "Optional key-value properties to assign to the entry."
+          }
+        },
+        "required": ["title"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "databaseId": { "type": "string" },
+          "url": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        {
+          "kind": "mcp",
+          "serverId": "notion",
+          "allow": {
+            "tools": ["notion-create-pages", "notion-search"]
+          }
+        },
+        {
+          "kind": "host",
+          "capability": "com.synapse.prompt"
+        }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "create_database",
+      "description": "Create a new database with title under a parent page in Notion.",
+      "triggers": ["create_database", "new_notion_database", "add_database"],
       "inputSchema": {
         "type": "object",
         "properties": {
           "title": {
             "type": "string",
-            "description": "Title for the new Notion page."
-          },
-          "content": {
-            "type": "string",
-            "description": "Markdown-compatible page content."
-          },
-          "databaseId": {
-            "type": "string",
-            "description": "Optional Notion database ID to create the page in."
+            "description": "Title for the new database."
           },
           "parentPageId": {
             "type": "string",
-            "description": "Optional Notion parent page ID to create the page under."
+            "description": "Optional parent page ID. If omitted, prompts user to select a parent page."
+          }
+        },
+        "required": ["title"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "url": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        {
+          "kind": "mcp",
+          "serverId": "notion",
+          "allow": {
+            "tools": ["notion-create-database", "notion-search"]
+          }
+        },
+        {
+          "kind": "host",
+          "capability": "com.synapse.prompt"
+        }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "view_database",
+      "description": "Fetch and view database structure, schema, and entries from Notion.",
+      "triggers": ["view_database", "get_database", "inspect_database"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "databaseId": {
+            "type": "string",
+            "description": "Notion database ID to inspect. If omitted, prompts user to select a database."
           }
         }
       },
       "outputSchema": {
         "type": "object",
         "properties": {
-          "tool": { "type": "string" },
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "url": { "type": "string" },
+          "data": {}
+        }
+      },
+      "requirements": [
+        {
+          "kind": "mcp",
+          "serverId": "notion",
+          "allow": {
+            "tools": ["notion-fetch", "notion-search"]
+          }
+        },
+        {
+          "kind": "host",
+          "capability": "com.synapse.prompt"
+        }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "list_databases",
+      "description": "List all databases available in the user's Notion workspace.",
+      "triggers": ["list_databases", "list_notion_databases", "find_databases"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Optional search filter for database names."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "databases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "url": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "requirements": [
+        {
+          "kind": "mcp",
+          "serverId": "notion",
+          "allow": {
+            "tools": ["notion-search"]
+          }
+        }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "quick_capture",
+      "description": "Quickly capture ideas, links, or notes and put them into a Notion page.",
+      "triggers": ["quick_capture", "capture_to_notion", "quick_note_capture"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Content or text to capture."
+          },
+          "title": {
+            "type": "string",
+            "description": "Optional title (auto-inferred from first line if omitted)."
+          },
+          "parentPageId": {
+            "type": "string",
+            "description": "Optional parent page ID to create the page under."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
           "title": { "type": "string" },
           "parent": { "type": "string" },
-          "result": {}
+          "url": { "type": "string" },
+          "message": { "type": "string" }
         }
       },
       "requirements": [
@@ -82,9 +268,197 @@
       "platforms": ["ios", "android", "macos", "windows", "linux"]
     },
     {
+      "id": "create_page",
+      "description": "Create a structured page in Notion with a title and Markdown content.",
+      "triggers": ["create_page", "new_notion_page", "create_doc"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title for the new page."
+          },
+          "content": {
+            "type": "string",
+            "description": "Markdown body content for the page."
+          },
+          "parentPageId": {
+            "type": "string",
+            "description": "Optional parent page ID. If omitted, prompts user to select a parent page."
+          }
+        },
+        "required": ["title"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "url": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        {
+          "kind": "mcp",
+          "serverId": "notion",
+          "allow": {
+            "tools": ["notion-create-pages", "notion-search"]
+          }
+        },
+        {
+          "kind": "host",
+          "capability": "com.synapse.prompt"
+        }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "view_page",
+      "description": "Read and view the content and properties of a Notion page.",
+      "triggers": ["view_page", "read_notion_page", "get_page", "fetch_page"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "pageId": {
+            "type": "string",
+            "description": "Notion page ID or URL. If omitted, prompts user to select a page."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "url": { "type": "string" },
+          "content": {},
+          "properties": {}
+        }
+      },
+      "requirements": [
+        {
+          "kind": "mcp",
+          "serverId": "notion",
+          "allow": {
+            "tools": ["notion-fetch", "notion-search"]
+          }
+        },
+        {
+          "kind": "host",
+          "capability": "com.synapse.prompt"
+        }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "add_text_to_page",
+      "description": "Append or prepend text, along with date, to a Notion page.",
+      "triggers": ["add_text_to_page", "append_to_page", "prepend_to_page", "append_text"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "pageId": {
+            "type": "string",
+            "description": "Target Notion page ID. If omitted, prompts user to select a page."
+          },
+          "text": {
+            "type": "string",
+            "description": "Text content to append or prepend."
+          },
+          "position": {
+            "type": "string",
+            "enum": ["append", "prepend"],
+            "default": "append",
+            "description": "Where to add the text (append or prepend)."
+          },
+          "includeDate": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to prepend a timestamp or date header."
+          }
+        },
+        "required": ["text"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "pageId": { "type": "string" },
+          "position": { "type": "string" },
+          "url": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        {
+          "kind": "mcp",
+          "serverId": "notion",
+          "allow": {
+            "tools": ["notion-update-page", "notion-search"]
+          }
+        },
+        {
+          "kind": "host",
+          "capability": "com.synapse.prompt"
+        }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "add_note",
+      "description": "Write a quick note into a daily page inside your notes page.",
+      "triggers": ["add_note", "create_daily_note", "add_daily_note", "write_note"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "Note content to write."
+          },
+          "title": {
+            "type": "string",
+            "description": "Optional heading or title for this note entry."
+          },
+          "date": {
+            "type": "string",
+            "description": "Optional ISO date (defaults to today's date YYYY-MM-DD)."
+          },
+          "notesPageId": {
+            "type": "string",
+            "description": "Optional parent notes page ID."
+          }
+        },
+        "required": ["note"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "date": { "type": "string" },
+          "url": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        {
+          "kind": "mcp",
+          "serverId": "notion",
+          "allow": {
+            "tools": ["notion-create-pages", "notion-search"]
+          }
+        },
+        {
+          "kind": "host",
+          "capability": "com.synapse.prompt"
+        }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
       "id": "search_notion",
-      "description": "Search for databases and pages in the user's Notion workspace.",
-      "triggers": ["search_notion", "list_notion_databases"],
+      "description": "Search for Notion databases and pages across the workspace.",
+      "triggers": ["search_notion", "find_in_notion", "search_pages"],
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -132,5 +506,5 @@
     }
   ],
   "categories": ["productivity"],
-  "keywords": ["notion", "notes", "mcp", "database"]
+  "keywords": ["notion", "notes", "mcp", "database", "pages", "workspace"]
 }

@@ -1,0 +1,168 @@
+{
+  "$schema": "../../schemas/manifest.schema.json",
+  "manifestVersion": 2,
+  "id": "com.synapse.google.contacts",
+  "name": "Google Contacts",
+  "version": "1.0.0",
+  "description": "Create, search, and manage address book contacts using the Google People API.",
+  "author": "Synapse",
+  "minSynapseVersion": "1.0.0",
+  "security": {
+    "allowedDomains": ["people.googleapis.com"],
+    "permissions": ["network"]
+  },
+  "connections": [
+    {
+      "alias": "google_contacts",
+      "provider": "google-contacts",
+      "type": "oauth2",
+      "scopes": [
+        "https://www.googleapis.com/auth/contacts",
+        "https://www.googleapis.com/auth/contacts.readonly"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "create_contact",
+      "description": "Create a new contact in Google Contacts.",
+      "triggers": ["create_contact", "add_contact", "save_contact", "new_contact"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Full name of the contact (or first name)."
+          },
+          "givenName": {
+            "type": "string",
+            "description": "First name."
+          },
+          "familyName": {
+            "type": "string",
+            "description": "Last / family name."
+          },
+          "email": {
+            "type": "string",
+            "description": "Primary email address."
+          },
+          "phone": {
+            "type": "string",
+            "description": "Phone number."
+          },
+          "company": {
+            "type": "string",
+            "description": "Company or organization name."
+          },
+          "jobTitle": {
+            "type": "string",
+            "description": "Job title or role."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "resourceName": { "type": "string" },
+          "name": { "type": "string" },
+          "email": { "type": "string" },
+          "phone": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "google_contacts" },
+        { "kind": "network", "domains": ["people.googleapis.com"] },
+        { "kind": "host", "capability": "com.synapse.prompt" }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "search_contacts",
+      "description": "Search contacts by name, email, or phone number.",
+      "triggers": ["search_contacts", "find_contact", "lookup_contact"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query text (name, email, or phone)."
+          },
+          "pageSize": {
+            "type": "number",
+            "default": 10,
+            "description": "Maximum number of contacts to return."
+          }
+        },
+        "required": ["query"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "count": { "type": "integer" },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "resourceName": { "type": "string" },
+                "name": { "type": "string" },
+                "email": { "type": "string" },
+                "phone": { "type": "string" },
+                "company": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "google_contacts" },
+        { "kind": "network", "domains": ["people.googleapis.com"] },
+        { "kind": "host", "capability": "com.synapse.prompt" }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    },
+    {
+      "id": "list_contacts",
+      "description": "List contacts from Google Contacts address book.",
+      "triggers": ["list_contacts", "get_contacts", "show_contacts"],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "pageSize": {
+            "type": "number",
+            "default": 10,
+            "description": "Maximum number of contacts to list."
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "resourceName": { "type": "string" },
+                "name": { "type": "string" },
+                "email": { "type": "string" },
+                "phone": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "requirements": [
+        { "kind": "connection", "alias": "google_contacts" },
+        { "kind": "network", "domains": ["people.googleapis.com"] }
+      ],
+      "platforms": ["ios", "android", "macos", "windows", "linux"]
+    }
+  ],
+  "categories": ["productivity"],
+  "keywords": ["google", "contacts", "people", "addressbook", "phonebook"]
+}
+
